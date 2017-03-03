@@ -22,7 +22,7 @@
     This file incorporates work covered by the following copyright and
     permission notice:
 
-    Copyright (c) 2013-2016, Cong Xu
+    Copyright (c) 2013-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -62,7 +62,8 @@
 #include <cdogs/character_class.h>
 #include <cdogs/collision.h>
 #include <cdogs/config_io.h>
-#include <cdogs/draw.h>
+#include <cdogs/draw/char_sprites.h>
+#include <cdogs/draw/draw.h>
 #include <cdogs/files.h>
 #include <cdogs/font_utils.h>
 #include <cdogs/grafx.h>
@@ -88,12 +89,12 @@
 #include <cdogs/utils.h>
 
 #include "autosave.h"
+#include "command_line.h"
 #include "credits.h"
 #include "mainmenu.h"
 #include "player_select_menus.h"
 #include "prep.h"
 #include "screens.h"
-#include "XGetopt.h"
 
 
 void MainLoop(credits_displayer_t *creditsDisplayer, custom_campaigns_t *campaigns)
@@ -125,88 +126,12 @@ void MainLoop(credits_displayer_t *creditsDisplayer, custom_campaigns_t *campaig
 	NetServerTerminate(&gNetServer);
 }
 
-void PrintTitle(void)
-{
-	printf("C-Dogs SDL %s\n", CDOGS_SDL_VERSION);
-
-	printf("Original Code Copyright Ronny Wester 1995\n");
-	printf("Game Data Copyright Ronny Wester 1995\n");
-	printf("SDL Port by Jeremy Chin, Lucas Martin-King and Cong Xu, Copyright 2003-2016\n\n");
-}
-
-static void PrintHelp(void)
-{
-	printf("%s\n",
-		"Video Options:\n"
-		"    --fullscreen     Try and use a fullscreen video mode.\n"
-		"    --scale=n        Scale the window resolution up by a factor of n\n"
-		"                       Factors: 2, 3, 4\n"
-		"    --screen=WxH     Set virtual screen width to W x H\n"
-		"    --forcemode      Don't check video mode sanity\n"
-	);
-
-	printf("%s\n",
-		"Sound Options:\n"
-		"    --nosound        Disable sound\n"
-	);
-
-	printf("%s\n",
-		"Control Options:\n"
-		"    --nojoystick     Disable joystick(s)\n"
-	);
-
-	printf("%s\n",
-		"Game Options:\n"
-		"    --wait           Wait for a key hit before initialising video.\n"
-		"    --shakemult=n    Screen shaking multiplier (0 = disable).\n"
-	);
-
-	printf(
-		"Logging: logging is enabled per module and set at certain levels.\n"
-		"Log modules are: "
-	);
-	for (int i = 0; i < (int)LM_COUNT; i++)
-	{
-		printf("%s", LogModuleName((LogModule)i));
-		if (i < (int)LM_COUNT - 1) printf(", ");
-		else printf("\n");
-	}
-	printf("Log levels are: ");
-	for (int i = 0; i < (int)LL_COUNT; i++)
-	{
-		printf("%s", LogLevelName((LogLevel)i));
-		if (i < (int)LL_COUNT - 1) printf(", ");
-		else printf("\n");
-	}
-	printf(
-		"    --log=M,L        Enable logging for module M at level L.\n\n"
-	);
-	printf(
-		"    --log=L          Enable logging for all modules at level L.\n\n"
-	);
-
-	printf("%s\n",
-		"Other:\n"
-		"    --connect=host   (Experimental) connect to a game server\n"
-		);
-
-	printf("%s\n",
-		"The DEBUG environment variable can be set to show debug information.");
-
-	printf(
-		"The DEBUG_LEVEL environment variable can be set to between %d and %d.\n", D_NORMAL, D_MAX
-		);
-}
-
 int main(int argc, char *argv[])
 {
-	int wait = 0;
-	int controllerFlag = SDL_INIT_GAMECONTROLLER;
 	credits_displayer_t creditsDisplayer;
 	memset(&creditsDisplayer, 0, sizeof creditsDisplayer);
 	custom_campaigns_t campaigns;
 	memset(&campaigns, 0, sizeof campaigns);
-	int forceResolution = 0;
 	int err = 0;
 	const char *loadCampaign = NULL;
 	ENetAddress connectAddr;
@@ -229,6 +154,10 @@ int main(int argc, char *argv[])
 
 	SetupConfigDir();
 	gConfig = ConfigLoad(GetConfigFilePath(CONFIG_FILE));
+	// Set config options that are only set via command line
+	ConfigGet(&gConfig, "Graphics.ShowHUD")->u.Bool.Value = true;
+	ConfigGet(&gConfig, "Graphics.ShakeMultiplier")->u.Int.Value = 1;
+
 	LoadCredits(&creditsDisplayer, colorPurple, colorDarker);
 	AutosaveInit(&gAutosave);
 	AutosaveLoad(&gAutosave, GetConfigFilePath(AUTOSAVE_FILE));
@@ -243,140 +172,18 @@ int main(int argc, char *argv[])
 
 	// Print command line
 	char buf[CDOGS_PATH_MAX];
-	buf[0] = '\0';
-	for (int i = 0; i < argc; i++)
-	{
-		strcat(buf, " ");
-		// HACK: for OS X, blank out the -psn_XXXX argument so that it doesn't
-		// break arg parsing
-	#ifdef __APPLE__
-		if (strncmp(argv[i], "-psn", strlen("-psn")) == 0)
-		{
-			argv[i] = "";
-		}
-	#endif
-		strcat(buf, argv[i]);
-	}
+	ProcessCommandLine(buf, argc, argv);
 	LOG(LM_MAIN, LL_INFO, "Command line (%d args):%s", argc, buf);
+	if (!ParseArgs(argc, argv, &connectAddr, &loadCampaign))
 	{
-		struct option longopts[] =
-		{
-			{"fullscreen",	no_argument,		NULL,	'f'},
-			{"scale",		required_argument,	NULL,	's'},
-			{"screen",		required_argument,	NULL,	'c'},
-			{"forcemode",	no_argument,		NULL,	'o'},
-			{"nosound",		no_argument,		NULL,	'n'},
-			{"nojoystick",	no_argument,		NULL,	'j'},
-			{"wait",		no_argument,		NULL,	'w'},
-			{"shakemult",	required_argument,	NULL,	'm'},
-			{"connect",		required_argument,	NULL,	'x'},
-			{"debug",		required_argument,	NULL,	'd'},
-			{"log",			required_argument,	NULL,	1000},
-			{"help",		no_argument,		NULL,	'h'},
-			{0,				0,					NULL,	0}
-		};
-		int opt = 0;
-		int idx = 0;
-		while ((opt = getopt_long(argc, argv, "fs:c:onjwm:xd\0h", longopts, &idx)) != -1)
-		{
-			switch (opt)
-			{
-			case 'f':
-				ConfigGet(&gConfig, "Graphics.Fullscreen")->u.Bool.Value = true;
-				break;
-			case 's':
-				ConfigSetInt(&gConfig, "Graphics.ScaleFactor", atoi(optarg));
-				break;
-			case 'c':
-				sscanf(optarg, "%dx%d",
-					&ConfigGet(&gConfig, "Graphics.ResolutionWidth")->u.Int.Value,
-					&ConfigGet(&gConfig, "Graphics.ResolutionHeight")->u.Int.Value);
-				LOG(LM_MAIN, LL_DEBUG, "Video mode %dx%d set...",
-					ConfigGetInt(&gConfig, "Graphics.ResolutionWidth"),
-					ConfigGetInt(&gConfig, "Graphics.ResolutionHeight"));
-				break;
-			case 'o':
-				forceResolution = 1;
-				break;
-			case 'n':
-				LOG(LM_MAIN, LL_INFO, "Sound to 0 volume");
-				ConfigGet(&gConfig, "Sound.SoundVolume")->u.Int.Value = 0;
-				ConfigGet(&gConfig, "Sound.MusicVolume")->u.Int.Value = 0;
-				break;
-			case 'j':
-				debug(D_NORMAL, "nojoystick\n");
-				controllerFlag = 0;
-				break;
-			case 'w':
-				wait = 1;
-				break;
-			case 'm':
-				{
-					ConfigGet(&gConfig, "Graphics.ShakeMultiplier")->u.Int.Value =
-						MAX(atoi(optarg), 0);
-					printf("Shake multiplier: %d\n",
-						ConfigGetInt(&gConfig, "Graphics.ShakeMultiplier"));
-				}
-				break;
-			case 'h':
-				PrintHelp();
-				goto bail;
-			case 'd':
-				// Set debug level
-				debug = true;
-				debug_level = CLAMP(atoi(optarg), D_NORMAL, D_MAX);
-				break;
-			case 1000:
-				{
-					char *comma = strchr(optarg, ',');
-					if (comma)
-					{
-						// Set logging level for a single module
-						// The module and level are comma separated
-						*comma = '\0';
-						const LogLevel ll = StrLogLevel(comma + 1);
-						LogModuleSetLevel(StrLogModule(optarg), ll);
-						printf("Logging %s at %s\n", optarg, LogLevelName(ll));
-					}
-					else
-					{
-						// Set logging level for all modules
-						const LogLevel ll = StrLogLevel(optarg);
-						for (int i = 0; i < (int)LM_COUNT; i++)
-						{
-							LogModuleSetLevel((LogModule)i, ll);
-						}
-						printf("Logging everything at %s\n", LogLevelName(ll));
-					}
-				}
-				break;
-			case 'x':
-				if (enet_address_set_host(&connectAddr, optarg) != 0)
-				{
-					printf("Error: unknown host %s\n", optarg);
-				}
-				break;
-			default:
-				PrintHelp();
-				// Ignore unknown arguments
-				break;
-			}
-		}
-		if (optind < argc)
-		{
-			// non-option ARGV-elements
-			for (; optind < argc; optind++)
-			{
-				// Load campaign
-				loadCampaign = argv[optind];
-			}
-		}
+		goto bail;
 	}
 
 	debug(D_NORMAL, "Initialising SDL...\n");
 	const int sdlFlags =
-		SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_HAPTIC;
-	if (SDL_Init(sdlFlags | controllerFlag) != 0)
+		SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_HAPTIC |
+		SDL_INIT_GAMECONTROLLER;
+	if (SDL_Init(sdlFlags) != 0)
 	{
 		LOG(LM_MAIN, LL_ERROR, "Could not initialise SDL: %s", SDL_GetError());
 		err = EXIT_FAILURE;
@@ -410,28 +217,15 @@ int main(int argc, char *argv[])
 
 	EventInit(&gEventHandlers, NULL, NULL, true);
 	NetServerInit(&gNetServer);
-
-	if (wait)
-	{
-		printf("Press the enter key to continue...\n");
-		getchar();
-	}
-	if (!PicManagerTryInit(
-		&gPicManager, "graphics/cdogs.px", "graphics/cdogs2.px"))
-	{
-		LOG(LM_MAIN, LL_ERROR, "Failed to initialize graphics");
-		err = EXIT_FAILURE;
-		goto bail;
-	}
-	memcpy(origPalette, gPicManager.palette, sizeof(origPalette));
+	PicManagerInit(&gPicManager);
 	GraphicsInit(&gGraphicsDevice, &gConfig);
-	GraphicsInitialize(&gGraphicsDevice, forceResolution);
+	GraphicsInitialize(&gGraphicsDevice);
 	if (!gGraphicsDevice.IsInitialized)
 	{
 		LOG(LM_MAIN, LL_WARN, "Cannot initialise video; trying default config");
 		ConfigResetDefault(ConfigGet(&gConfig, "Graphics"));
 		GraphicsInit(&gGraphicsDevice, &gConfig);
-		GraphicsInitialize(&gGraphicsDevice, forceResolution);
+		GraphicsInitialize(&gGraphicsDevice);
 	}
 	if (!gGraphicsDevice.IsInitialized)
 	{
@@ -441,6 +235,7 @@ int main(int argc, char *argv[])
 	}
 	FontLoadFromJSON(&gFont, "graphics/font.png", "graphics/font.json");
 	PicManagerLoad(&gPicManager, "graphics");
+	CharSpriteClassesInit(&gCharSpriteClasses);
 
 	ParticleClassesInit(&gParticleClasses, "data/particles.json");
 	AmmoInitialize(&gAmmo, "data/ammo.json");
@@ -506,6 +301,7 @@ bail:
 	GraphicsTerminate(&gGraphicsDevice);
 	CampaignTerminate(&gCampaign);
 
+	CharSpriteClassesTerminate(&gCharSpriteClasses);
 	PicManagerTerminate(&gPicManager);
 	FontTerminate(&gFont);
 	AutosaveSave(&gAutosave, GetConfigFilePath(AUTOSAVE_FILE));
@@ -518,6 +314,7 @@ bail:
 	UnloadAllCampaigns(&campaigns);
 	SoundTerminate(&gSoundDevice, true);
 	ConfigDestroy(&gConfig);
+	LogTerminate();
 
 	SDLJBN_Quit();
 	SDL_Quit();

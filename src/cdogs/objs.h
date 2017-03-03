@@ -105,6 +105,7 @@ bool HasHitSound(
 void Damage(
 	const Vec2i hitVector,
 	const int power,
+	const double mass,
 	const int flags, const int playerUID, const int uid,
 	const TileItemKind targetKind, const int targetUID,
 	const special_damage_e special);
@@ -112,9 +113,6 @@ void Damage(
 void ObjsInit(void);
 void ObjsTerminate(void);
 int ObjsGetNextUID(void);
-void AddObjectOld(
-	const Vec2i pos, const Vec2i size,
-	const TOffsetPic *pic, const int tileFlags);
 void ObjAdd(const NMapObjectAdd amo);
 void ObjRemove(const NMapObjectRemove mor);
 void ObjDestroy(TObject *o);

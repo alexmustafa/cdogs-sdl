@@ -34,6 +34,7 @@
 #include "door.h"
 #include "files.h"
 #include "json_utils.h"
+#include "log.h"
 #include "map_archive.h"
 
 
@@ -160,9 +161,7 @@ int MapNewLoad(const char *filename, CampaignSetting *c)
 	}
 	MapNewLoadCampaignJSON(root, c);
 	LoadMissions(&c->Missions, json_find_first_label(root, "Missions")->child, version);
-	LoadCharacters(
-		&c->characters, json_find_first_label(root, "Characters")->child,
-		version);
+	CharacterLoadJSON(&c->characters, root, version);
 
 bail:
 	json_free_value(&root);
@@ -359,8 +358,6 @@ void LoadMissions(CArray *missions, json_t *missionsNode, int version)
 }
 static void LoadStaticItems(
 	Mission *m, json_t *node, const char *name, const int version);
-static void LoadStaticWrecks(
-	Mission *m, json_t *node, const char *name, const int version);
 static void LoadStaticCharacters(Mission *m, json_t *node, char *name);
 static void LoadStaticObjectives(Mission *m, json_t *node, char *name);
 static void LoadStaticKeys(Mission *m, json_t *node, char *name);
@@ -397,8 +394,12 @@ static bool TryLoadStaticMap(Mission *m, json_t *node, int version)
 		CFREE(tileCSV);
 	}
 
+	CArrayInit(&m->u.Static.Items, sizeof(MapObjectPositions));
 	LoadStaticItems(m, node, "StaticItems", version);
-	LoadStaticWrecks(m, node, "StaticWrecks", version);
+	if (version < 13)
+	{
+		LoadStaticItems(m, node, "StaticWrecks", version);
+	}
 	LoadStaticCharacters(m, node, "StaticCharacters");
 	LoadStaticObjectives(m, node, "StaticObjectives");
 	LoadStaticKeys(m, node, "StaticKeys");
@@ -407,54 +408,6 @@ static bool TryLoadStaticMap(Mission *m, json_t *node, int version)
 	LoadStaticExit(m, node, "Exit");
 
 	return true;
-}
-void LoadCharacters(
-	CharacterStore *c, json_t *charactersNode, const int version)
-{
-	json_t *child = charactersNode->child;
-	CharacterStoreTerminate(c);
-	CharacterStoreInit(c);
-	while (child)
-	{
-		Character *ch = CharacterStoreAddOther(c);
-		char *tmp;
-		if (version < 7)
-		{
-			// Old version stored character looks as palette indices
-			int face;
-			LoadInt(&face, child, "face");
-			ch->Class = IntCharacterClass(face);
-			int skin, arm, body, leg, hair;
-			LoadInt(&skin, child, "skin");
-			LoadInt(&arm, child, "arm");
-			LoadInt(&body, child, "body");
-			LoadInt(&leg, child, "leg");
-			LoadInt(&hair, child, "hair");
-			ConvertCharacterColors(skin, arm, body, leg, hair, &ch->Colors);
-		}
-		else
-		{
-			tmp = GetString(child, "Class");
-			ch->Class = StrCharacterClass(tmp);
-			CFREE(tmp);
-			LoadColor(&ch->Colors.Skin, child, "Skin");
-			LoadColor(&ch->Colors.Arms, child, "Arms");
-			LoadColor(&ch->Colors.Body, child, "Body");
-			LoadColor(&ch->Colors.Legs, child, "Legs");
-			LoadColor(&ch->Colors.Hair, child, "Hair");
-		}
-		LoadInt(&ch->speed, child, "speed");
-		tmp = GetString(child, "Gun");
-		ch->Gun = StrGunDescription(tmp);
-		CFREE(tmp);
-		LoadInt(&ch->maxHealth, child, "maxHealth");
-		LoadInt(&ch->flags, child, "flags");
-		LoadInt(&ch->bot->probabilityToMove, child, "probabilityToMove");
-		LoadInt(&ch->bot->probabilityToTrack, child, "probabilityToTrack");
-		LoadInt(&ch->bot->probabilityToShoot, child, "probabilityToShoot");
-		LoadInt(&ch->bot->actionDelay, child, "actionDelay");
-		child = child->next;
-	}
 }
 
 static void LoadMissionObjectives(
@@ -554,8 +507,6 @@ static const MapObject *LoadMapObjectRef(json_t *node, const int version);
 static void LoadStaticItems(
 	Mission *m, json_t *node, const char *name, const int version)
 {
-	CArrayInit(&m->u.Static.Items, sizeof(MapObjectPositions));
-
 	json_t *items = json_find_first_label(node, name);
 	if (!items || !items->child)
 	{
@@ -566,6 +517,10 @@ static void LoadStaticItems(
 	{
 		MapObjectPositions mop;
 		mop.M = LoadMapObjectRef(items, version);
+		if (mop.M == NULL)
+		{
+			continue;
+		}
 		CArrayInit(&mop.Positions, sizeof(Vec2i));
 		json_t *positions = json_find_first_label(items, "Positions");
 		if (!positions || !positions->child)
@@ -587,42 +542,6 @@ static void LoadStaticItems(
 		CArrayPushBack(&m->u.Static.Items, &mop);
 	}
 }
-static void LoadStaticWrecks(
-	Mission *m, json_t *node, const char *name, const int version)
-{
-	CArrayInit(&m->u.Static.Wrecks, sizeof(MapObjectPositions));
-	
-	json_t *wrecks = json_find_first_label(node, name);
-	if (!wrecks || !wrecks->child)
-	{
-		return;
-	}
-	wrecks = wrecks->child;
-	for (wrecks = wrecks->child; wrecks; wrecks = wrecks->next)
-	{
-		MapObjectPositions mop;
-		mop.M = LoadMapObjectRef(wrecks, version);
-		CArrayInit(&mop.Positions, sizeof(Vec2i));
-		json_t *positions = json_find_first_label(wrecks, "Positions");
-		if (!positions || !positions->child)
-		{
-			continue;
-		}
-		positions = positions->child;
-		for (positions = positions->child;
-			 positions;
-			 positions = positions->next)
-		{
-			Vec2i pos;
-			json_t *position = positions->child;
-			pos.x = atoi(position->text);
-			position = position->next;
-			pos.y = atoi(position->text);
-			CArrayPushBack(&mop.Positions, &pos);
-		}
-		CArrayPushBack(&m->u.Static.Wrecks, &mop);
-	}
-}
 static const MapObject *LoadMapObjectRef(json_t *itemNode, const int version)
 {
 	if (version <= 3)
@@ -633,8 +552,24 @@ static const MapObject *LoadMapObjectRef(json_t *itemNode, const int version)
 	}
 	else
 	{
-		return StrMapObject(
-			json_find_first_label(itemNode, "MapObject")->child->text);
+		const char *moName =
+			json_find_first_label(itemNode, "MapObject")->child->text;
+		const MapObject *mo = StrMapObject(moName);
+		if (mo == NULL && version <= 11 && StrEndsWith(moName, " spawner"))
+		{
+			char buf[256];
+			// Old version had same name for ammo and gun spawner
+			char itemName[256];
+			strncpy(itemName, moName, strlen(moName) - strlen(" spawner"));
+			itemName[strlen(moName) - strlen(" spawner")] = '\0';
+			snprintf(buf, 256, "%s ammo spawner", itemName);
+			mo = StrMapObject(buf);
+		}
+		if (mo == NULL)
+		{
+			LOG(LM_MAP, LL_ERROR, "Failed to load map object (%s)", moName);
+		}
+		return mo;
 	}
 }
 static void LoadStaticCharacters(Mission *m, json_t *node, char *name)

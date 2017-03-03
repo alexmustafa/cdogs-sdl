@@ -25,7 +25,8 @@
 */
 #include "briefing_screens.h"
 
-#include <cdogs/draw.h>
+#include <cdogs/draw/draw.h>
+#include <cdogs/draw/draw_actor.h>
 #include <cdogs/events.h>
 #include <cdogs/files.h>
 #include <cdogs/font.h>
@@ -616,14 +617,14 @@ static void DrawObjectiveInfo(const Objective *o, const Vec2i pos)
 		{
 			const Character *cd = CArrayGet(
 				&store->OtherChars, CharacterStoreGetSpecialId(store, 0));
-			DrawHead(cd, DIRECTION_DOWN, STATE_IDLE, pos);
+			DrawHead(cd, DIRECTION_DOWN, pos);
 		}
 		break;
 	case OBJECTIVE_RESCUE:
 		{
 			const Character *cd = CArrayGet(
 				&store->OtherChars, CharacterStoreGetPrisonerId(store, 0));
-			DrawHead(cd, DIRECTION_DOWN, STATE_IDLE, pos);
+			DrawHead(cd, DIRECTION_DOWN, pos);
 		}
 		break;
 	case OBJECTIVE_COLLECT:
@@ -636,8 +637,7 @@ static void DrawObjectiveInfo(const Objective *o, const Vec2i pos)
 	case OBJECTIVE_DESTROY:
 		{
 			Vec2i picOffset;
-			const Pic *p =
-				MapObjectGetPic(o->u.MapObject, &picOffset, false);
+			const Pic *p = MapObjectGetPic(o->u.MapObject, &picOffset);
 			Blit(&gGraphicsDevice, p, Vec2iAdd(pos, picOffset));
 		}
 		break;

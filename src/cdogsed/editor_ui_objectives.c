@@ -27,7 +27,8 @@
 */
 #include "editor_ui_objectives.h"
 
-#include <cdogs/draw.h>
+#include <cdogs/draw/draw.h>
+#include <cdogs/draw/draw_actor.h>
 #include <cdogs/font.h>
 
 #include "editor_ui.h"
@@ -500,10 +501,11 @@ static void MissionDrawDestroyObjective(
 	if ((int)m->Objectives.size <= data->index) return;
 	// TODO: only one kill and rescue objective allowed
 	const Objective *obj = CArrayGet(&m->Objectives, data->index);
-	const Pic *newPic = obj->u.MapObject->Normal.Pic;
+	Vec2i offset;
+	const Pic *newPic = MapObjectGetPic(obj->u.MapObject, &offset);
 	const Vec2i drawPos =
 		Vec2iAdd(Vec2iAdd(pos, o->Pos), Vec2iScaleDiv(o->Size, 2));
-	Blit(g, newPic, Vec2iMinus(drawPos, Vec2iScaleDiv(newPic->size, 2)));
+	Blit(g, newPic, Vec2iAdd(drawPos, offset));
 }
 static void MissionDrawRescueObjective(
 	UIObject *o, GraphicsDevice *g, Vec2i pos, void *vData)

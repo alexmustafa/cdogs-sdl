@@ -185,7 +185,7 @@ void EventPoll(EventHandlers *handlers, Uint32 ticks)
 						scale,
 						gGraphicsDevice.cachedConfig.ScaleMode,
 						gGraphicsDevice.cachedConfig.Brightness);
-					GraphicsInitialize(&gGraphicsDevice, false);
+					GraphicsInitialize(&gGraphicsDevice);
 				}
 				break;
 			default:
@@ -495,6 +495,7 @@ SDL_Scancode GetKey(EventHandlers *handlers)
 	{
 		EventPoll(handlers, SDL_GetTicks());
 		k = KeyGetPressed(&handlers->keyboard);
+		SDL_Delay(10);
 	} while (k == SDL_SCANCODE_UNKNOWN);
 	return k;
 }
@@ -506,6 +507,7 @@ SDL_Scancode EventWaitKeyOrText(EventHandlers *handlers)
 	{
 		EventPoll(handlers, SDL_GetTicks());
 		k = KeyGetPressed(&handlers->keyboard);
+		SDL_Delay(10);
 	} while (k == SDL_SCANCODE_UNKNOWN && handlers->keyboard.Typed[0] == '\0');
 	return k;
 }

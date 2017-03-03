@@ -1,7 +1,7 @@
 /*
     C-Dogs SDL
     A port of the legendary (and fun) action/arcade cdogs.
-    Copyright (c) 2014-2016, Cong Xu
+    Copyright (c) 2014-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -65,8 +65,7 @@ bail:
 
 static void LoadArchiveSounds(
 	SoundDevice *device, const char *archive, const char *dirname);
-static void LoadArchivePics(
-	PicManager *pm, const char *archive, const char *dirname);
+static void LoadArchivePics(PicManager *pm, map_t cc, const char *archive);
 int MapNewLoadArchive(const char *filename, CampaignSetting *c)
 {
 	LOG(LM_MAP, LL_DEBUG, "Loading archive map %s", filename);
@@ -90,7 +89,7 @@ int MapNewLoadArchive(const char *filename, CampaignSetting *c)
 	// Load any custom data
 	LoadArchiveSounds(&gSoundDevice, filename, "sounds");
 
-	LoadArchivePics(&gPicManager, filename, "graphics");
+	LoadArchivePics(&gPicManager, gCharSpriteClasses.customClasses, filename);
 
 	root = ReadArchiveJSON(filename, "particles.json");
 	if (root != NULL)
@@ -164,9 +163,7 @@ int MapNewLoadArchive(const char *filename, CampaignSetting *c)
 	root = ReadArchiveJSON(filename, "characters.json");
 	if (root != NULL)
 	{
-		LoadCharacters(
-			&c->characters, json_find_first_label(root, "Characters")->child,
-			version);
+		CharacterLoadJSON(&c->characters, root, version);
 	}
 
 bail:
@@ -200,61 +197,16 @@ bail:
 static void LoadArchiveSounds(
 	SoundDevice *device, const char *archive, const char *dirname)
 {
-	char *buf = NULL;
-
 	char path[CDOGS_PATH_MAX];
 	sprintf(path, "%s/%s", archive, dirname);
-	tinydir_dir dir;
-	if (tinydir_open(&dir, path) != 0)
-	{
-		LOG(LM_MAP, LL_DEBUG, "no sound dir(%s): %s", path, strerror(errno));
-		goto bail;
-	}
-	while (dir.has_next)
-	{
-		tinydir_file file;
-		tinydir_readfile(&dir, &file);
-		if (!file.is_reg) goto nextFile;
-		long len;
-		buf = ReadFileIntoBuf(file.path, "rb", &len);
-		if (buf == NULL) goto nextFile;
-		SDL_RWops *rwops = SDL_RWFromMem(buf, len);
-		Mix_Chunk *data = Mix_LoadWAV_RW(rwops, 0);
-		if (data != NULL)
-		{
-			char nameBuf[CDOGS_FILENAME_MAX];
-			strcpy(nameBuf, file.name);
-			// Remove extension
-			char *dot = strrchr(nameBuf, '.');
-			if (dot != NULL)
-			{
-				*dot = '\0';
-			}
-			SoundAdd(&device->customSounds, nameBuf, data);
-		}
-		rwops->close(rwops);
-	nextFile:
-		CFREE(buf);
-		buf = NULL;
-		if (tinydir_next(&dir) != 0)
-		{
-			printf(
-				"Could not go to next file in dir %s: %s\n",
-				path, strerror(errno));
-			goto bail;
-		}
-	}
-
-bail:
-	CFREE(buf);
-	tinydir_close(&dir);
+	SoundLoadDir(device->customSounds, path, NULL);
 }
-static void LoadArchivePics(
-	PicManager *pm, const char *archive, const char *dirname)
+static void LoadArchivePics(PicManager *pm, map_t cc, const char *archive)
 {
 	char path[CDOGS_PATH_MAX];
-	sprintf(path, "%s/%s", archive, dirname);
+	sprintf(path, "%s/graphics", archive);
 	PicManagerLoadDir(pm, path, NULL, pm->customPics, pm->customSprites);
+	CharSpriteClassesLoadDir(cc, archive);
 }
 
 static char *ReadFileIntoBuf(const char *path, const char *mode, long *len)
@@ -307,8 +259,6 @@ end:
 
 
 static json_t *SaveMissions(CArray *a);
-static json_t *SaveCharacters(CharacterStore *s);
-bool TrySaveJSONFile(json_t *node, const char *filename);
 int MapArchiveSave(const char *filename, CampaignSetting *c)
 {
 	int res = 1;
@@ -354,12 +304,7 @@ int MapArchiveSave(const char *filename, CampaignSetting *c)
 		goto bail;
 	}
 
-	json_free_value(&root);
-	root = json_new_object();
-	json_insert_pair_into_object(
-		root, "Characters", SaveCharacters(&c->characters));
-	sprintf(buf2, "%s/characters.json", buf);
-	if (!TrySaveJSONFile(root, buf2))
+	if (!CharacterSave(&c->characters, buf))
 	{
 		res = 0;
 		goto bail;
@@ -367,35 +312,6 @@ int MapArchiveSave(const char *filename, CampaignSetting *c)
 
 bail:
 	json_free_value(&root);
-	return res;
-}
-bool TrySaveJSONFile(json_t *node, const char *filename)
-{
-	bool res = true;
-	char *text;
-	json_tree_to_string(node, &text);
-	char *ftext = json_format_string(text);
-	FILE *f = fopen(filename, "w");
-	if (f == NULL)
-	{
-		printf("failed to open. Reason: [%s].\n", strerror(errno));
-		res = false;
-		goto bail;
-	}
-	size_t writeLen = strlen(ftext);
-	const size_t rc = fwrite(ftext, 1, writeLen, f);
-	if (rc != writeLen)
-	{
-		printf("Wrote (%d) of (%d) bytes. Reason: [%s].\n",
-			(int)rc, (int)writeLen, strerror(errno));
-		res = false;
-		goto bail;
-	}
-
-bail:
-	CFREE(text);
-	CFREE(ftext);
-	if (f != NULL) fclose(f);
 	return res;
 }
 
@@ -408,7 +324,6 @@ static json_t *SaveClassicDoors(Mission *m);
 static json_t *SaveClassicPillars(Mission *m);
 static json_t *SaveStaticTiles(Mission *m);
 static json_t *SaveStaticItems(Mission *m);
-static json_t *SaveStaticWrecks(Mission *m);
 static json_t *SaveStaticCharacters(Mission *m);
 static json_t *SaveStaticObjectives(Mission *m);
 static json_t *SaveStaticKeys(Mission *m);
@@ -484,8 +399,6 @@ static json_t *SaveMissions(CArray *a)
 				json_insert_pair_into_object(
 					node, "StaticItems", SaveStaticItems(mission));
 				json_insert_pair_into_object(
-					node, "StaticWrecks", SaveStaticWrecks(mission));
-				json_insert_pair_into_object(
 					node, "StaticCharacters", SaveStaticCharacters(mission));
 				json_insert_pair_into_object(
 					node, "StaticObjectives", SaveStaticObjectives(mission));
@@ -518,30 +431,6 @@ static json_t *SaveMissions(CArray *a)
 		json_insert_child(missionsNode, node);
 	}
 	return missionsNode;
-}
-static json_t *SaveCharacters(CharacterStore *s)
-{
-	json_t *charNode = json_new_array();
-	CA_FOREACH(Character, c, s->OtherChars)
-		json_t *node = json_new_object();
-		AddStringPair(node, "Class", c->Class->Name);
-		AddColorPair(node, "Skin", c->Colors.Skin);
-		AddColorPair(node, "Arms", c->Colors.Arms);
-		AddColorPair(node, "Body", c->Colors.Body);
-		AddColorPair(node, "Legs", c->Colors.Legs);
-		AddColorPair(node, "Hair", c->Colors.Hair);
-		AddIntPair(node, "speed", c->speed);
-		json_insert_pair_into_object(
-			node, "Gun", json_new_string(c->Gun->name));
-		AddIntPair(node, "maxHealth", c->maxHealth);
-		AddIntPair(node, "flags", c->flags);
-		AddIntPair(node, "probabilityToMove", c->bot->probabilityToMove);
-		AddIntPair(node, "probabilityToTrack", c->bot->probabilityToTrack);
-		AddIntPair(node, "probabilityToShoot", c->bot->probabilityToShoot);
-		AddIntPair(node, "actionDelay", c->bot->actionDelay);
-		json_insert_child(charNode, node);
-	CA_FOREACH_END()
-	return charNode;
 }
 static json_t *SaveClassicRooms(Mission *m)
 {
@@ -621,24 +510,6 @@ static json_t *SaveStaticItems(Mission *m)
 		json_insert_child(items, itemNode);
 	CA_FOREACH_END()
 	return items;
-}
-static json_t *SaveStaticWrecks(Mission *m)
-{
-	json_t *wrecks = json_new_array();
-	CA_FOREACH(MapObjectPositions, mop, m->u.Static.Wrecks)
-		json_t *wreckNode = json_new_object();
-		AddStringPair(wreckNode, "MapObject", mop->M->Name);
-		json_t *positions = json_new_array();
-		for (int j = 0; j < (int)mop->Positions.size; j++)
-		{
-			Vec2i *pos = CArrayGet(&mop->Positions, j);
-			json_insert_child(positions, SaveVec2i(*pos));
-		}
-		json_insert_pair_into_object(
-			wreckNode, "Positions", positions);
-		json_insert_child(wrecks, wreckNode);
-	CA_FOREACH_END()
-	return wrecks;
 }
 static json_t *SaveStaticCharacters(Mission *m)
 {

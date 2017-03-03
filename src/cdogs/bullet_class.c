@@ -22,7 +22,7 @@
     This file incorporates work covered by the following copyright and
     permission notice:
 
-    Copyright (c) 2013-2016, Cong Xu
+    Copyright (c) 2013-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@
 
 #include "ai_utils.h"
 #include "collision.h"
-#include "drawtools.h"
+#include "draw/drawtools.h"
 #include "game_events.h"
 #include "json_utils.h"
 #include "log.h"
@@ -407,7 +407,8 @@ static bool HitItemFunc(TTileItem *ti, void *data)
 	int targetUID = -1;
 	hData->HitType = GetHitType(ti, hData->Obj, &targetUID);
 	Damage(
-		hData->Obj->vel, hData->Obj->bulletClass->Power,
+		hData->Obj->vel,
+		hData->Obj->bulletClass->Power, hData->Obj->bulletClass->Mass,
 		hData->Obj->flags, hData->Obj->PlayerUID, hData->Obj->ActorUID,
 		ti->kind, targetUID,
 		hData->Obj->bulletClass->Special);
@@ -459,9 +460,10 @@ static HitType GetHitType(
 
 
 
-#define VERSION 1
+#define VERSION 3
 static void LoadBullet(
-	BulletClass *b, json_t *node, const BulletClass *defaultBullet);
+	BulletClass *b, json_t *node, const BulletClass *defaultBullet,
+	const int version);
 void BulletInitialize(BulletClasses *bullets)
 {
 	memset(bullets, 0, sizeof *bullets);
@@ -486,21 +488,24 @@ void BulletLoadJSON(
 	if (defaultNode != NULL)
 	{
 		BulletClassFree(&bullets->Default);
-		LoadBullet(&bullets->Default, defaultNode->child, NULL);
+		LoadBullet(&bullets->Default, defaultNode->child, NULL, version);
 	}
 
 	json_t *bulletsNode = json_find_first_label(bulletNode, "Bullets")->child;
 	for (json_t *child = bulletsNode->child; child; child = child->next)
 	{
 		BulletClass b;
-		LoadBullet(&b, child, &bullets->Default);
+		LoadBullet(&b, child, &bullets->Default, version);
 		CArrayPushBack(classes, &b);
 	}
 
 	bullets->root = bulletNode;
 }
+static void LoadHitsound(
+	char **hitsound, json_t *node, const char *name, const int version);
 static void LoadBullet(
-	BulletClass *b, json_t *node, const BulletClass *defaultBullet)
+	BulletClass *b, json_t *node, const BulletClass *defaultBullet,
+	const int version)
 {
 	memset(b, 0, sizeof *b);
 	if (defaultBullet != NULL)
@@ -565,6 +570,17 @@ static void LoadBullet(
 	b->RangeLow = MIN(b->RangeLow, b->RangeHigh);
 	b->RangeHigh = MAX(b->RangeLow, b->RangeHigh);
 	LoadInt(&b->Power, node, "Power");
+
+	if (version < 2)
+	{
+		// Old version default mass = power
+		b->Mass = b->Power;
+	}
+	else
+	{
+		LoadDouble(&b->Mass, node, "Mass");
+	}
+
 	LoadVec2i(&b->Size, node, "Size");
 	tmp = NULL;
 	LoadStr(&tmp, node, "Special");
@@ -585,15 +601,9 @@ static void LoadBullet(
 	if (json_find_first_label(node, "HitSounds"))
 	{
 		json_t *hitSounds = json_find_first_label(node, "HitSounds")->child;
-		CFREE(b->HitSound.Object);
-		b->HitSound.Object = NULL;
-		LoadStr(&b->HitSound.Object, hitSounds, "Object");
-		CFREE(b->HitSound.Flesh);
-		b->HitSound.Flesh = NULL;
-		LoadStr(&b->HitSound.Flesh, hitSounds, "Flesh");
-		CFREE(b->HitSound.Wall);
-		b->HitSound.Wall = NULL;
-		LoadStr(&b->HitSound.Wall, hitSounds, "Wall");
+		LoadHitsound(&b->HitSound.Object, hitSounds, "Object", version);
+		LoadHitsound(&b->HitSound.Flesh, hitSounds, "Flesh", version);
+		LoadHitsound(&b->HitSound.Wall, hitSounds, "Wall", version);
 	}
 	LoadBool(&b->WallBounces, node, "WallBounces");
 	LoadBool(&b->HitsObjects, node, "HitsObjects");
@@ -643,6 +653,33 @@ static void LoadBullet(
 		(int)b->OutOfRangeGuns.size,
 		(int)b->HitGuns.size,
 		(int)b->ProximityGuns.size);
+}
+static void LoadHitsound(
+	char **hitsound, json_t *node, const char *name, const int version)
+{
+	CFREE(*hitsound);
+	*hitsound = NULL;
+	LoadStr(hitsound, node, name);
+	if (version < 3)
+	{
+		// Moved hit_XXX sounds to hits folder
+		if (*hitsound != NULL)
+		{
+			char buf[CDOGS_FILENAME_MAX];
+			strcpy(buf, "hits/");
+			if (strncmp(*hitsound, "hit_", strlen("hit_")) == 0)
+			{
+				strcat(buf, *hitsound + strlen("hit_"));
+			}
+			else if (strncmp(*hitsound, "knife_", strlen("knife_")) == 0)
+			{
+				strcpy(buf, "hits/knife_");
+				strcat(buf, *hitsound + strlen("knife_"));
+			}
+			CFREE(*hitsound);
+			CSTRDUP(*hitsound, buf);
+		}
+	}
 }
 static void BulletClassesLoadWeapons(CArray *classes);
 void BulletLoadWeapons(BulletClasses *bullets)

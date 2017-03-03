@@ -55,25 +55,6 @@
 #define BODY_ARMED          1
 #define BODY_COUNT          2
 
-#define FACE_JONES          0
-#define FACE_ICE            1
-#define FACE_OGRE           2
-#define FACE_HAN            3
-#define FACE_WARBABY        4
-#define FACE_BUGEYE         5
-#define FACE_BLONDIE        6
-#define FACE_OGREBOSS       7
-#define FACE_GRUNT          8
-#define FACE_PROFESSOR      9
-#define FACE_PIRAT1        10
-#define FACE_PIRAT2        11
-#define FACE_PIRAT3        12
-#define FACE_MAD_BUGEYE    13
-#define FACE_CYBORG        14
-#define FACE_ROBOT         15
-#define FACE_LADY          16
-#define FACE_COUNT         17
-
 // Commands
 #define CMD_LEFT            1
 #define CMD_RIGHT           2
@@ -121,16 +102,6 @@ typedef enum
 	SPECIAL_CONFUSE
 } special_damage_e;
 special_damage_e StrSpecialDamage(const char *s);
-
-// States
-#define STATE_IDLE          0
-#define STATE_IDLELEFT      1
-#define STATE_IDLERIGHT     2
-#define STATE_WALKING_1     3
-#define STATE_WALKING_2     4
-#define STATE_WALKING_3     5
-#define STATE_WALKING_4     6
-#define STATE_COUNT         7
 
 #define Z_FACTOR 16	// the number of increments used for Z
 

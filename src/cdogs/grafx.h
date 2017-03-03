@@ -55,7 +55,6 @@
 #include "c_array.h"
 #include "color.h"
 #include "config.h"
-#include "pic_file.h"
 #include "vector.h"
 #include "sys_specifics.h"
 
@@ -104,7 +103,7 @@ typedef struct
 extern GraphicsDevice gGraphicsDevice;
 
 void GraphicsInit(GraphicsDevice *device, Config *c);
-void GraphicsInitialize(GraphicsDevice *g, const bool force);
+void GraphicsInitialize(GraphicsDevice *g);
 void GraphicsTerminate(GraphicsDevice *g);
 int GraphicsGetScreenSize(GraphicsConfig *config);
 int GraphicsGetMemSize(GraphicsConfig *config);

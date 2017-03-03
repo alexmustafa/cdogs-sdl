@@ -53,8 +53,9 @@
 
 #include "actors.h"
 #include "config.h"
-#include "draw.h"
-#include "drawtools.h"
+#include "draw/draw.h"
+#include "draw/draw_actor.h"
+#include "draw/drawtools.h"
 #include "font.h"
 #include "gamedata.h"
 #include "map.h"
@@ -86,7 +87,7 @@ static void DisplayPlayer(const TActor *player, Vec2i pos, const int scale)
 	pos = Vec2iAdd(pos, Vec2iScale(playerPos, scale));
 	if (scale >= 2)
 	{
-		DrawHead(ActorGetCharacter(player), DIRECTION_DOWN, STATE_IDLE, pos);
+		DrawHead(ActorGetCharacter(player), DIRECTION_DOWN, pos);
 	}
 	else
 	{

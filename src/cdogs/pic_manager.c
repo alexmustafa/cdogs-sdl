@@ -1,7 +1,7 @@
 /*
     C-Dogs SDL
     A port of the legendary (and fun) action/arcade cdogs.
-    Copyright (c) 2013-2016, Cong Xu
+    Copyright (c) 2013-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -36,294 +36,19 @@
 
 PicManager gPicManager;
 
-// +--------------------+
-// |  Color range info  |
-// +--------------------+
-#define WALL_COLORS       208
-#define FLOOR_COLORS      216
-#define ROOM_COLORS       232
-#define ALT_COLORS        224
 
-// Color range defines
-#define SKIN_START 2
-#define SKIN_END   9
-#define BODY_START 52
-#define BODY_END   61
-#define ARMS_START 68
-#define ARMS_END   77
-#define LEGS_START 84
-#define LEGS_END   93
-#define HAIR_START 132
-#define HAIR_END   135
-
-static uint8_t cWhiteValues[] = { 64, 56, 46, 36, 30, 24, 20, 16 };
-static const char *faceNames[] =
-{
-	"jones",
-	"ice",
-	"ogre",
-	"dragon",
-	"warbaby",
-	"bugeye",
-	"smith",
-	"ogreboss",
-	"grunt",
-	"professor",
-	"snake",
-	"wolf",
-	"bob",
-	"madbugeye",
-	"cyborg",
-	"robot",
-	"lady"
-};
-static int facePicsIdle[][DIRECTION_COUNT] =
-{
-	{ 26, 27, 28, 29, 30, 31, 32, 33 },
-	{ 129, 130, 131, 132, 133, 134, 135, 136 },
-	{ 121, 122, 123, 124, 125, 126, 127, 128 },
-	{ 228, 227, 226, 225, 224, 223, 222, 229 },
-	{ 236, 235, 234, 233, 232, 231, 230, 237 },
-	{ 249, 248, 247, 246, 245, 244, 243, 250 },
-	{ 272, 271, 270, 269, 268, 267, 266, 273 },
-	{ 308, 307, 306, 305, 304, 303, 302, 309 },
-	{ 372, 371, 370, 369, 368, 367, 366, 373 },
-	{ 396, 395, 394, 393, 392, 391, 390, 397 },
-	{ 404, 403, 402, 401, 400, 399, 398, 405 },
-	{ 412, 411, 410, 409, 408, 407, 406, 413 },
-	{ 420, 419, 418, 417, 416, 415, 414, 421 },
-	{ 428, 427, 426, 425, 424, 423, 422, 429 },
-	{ 436, 435, 434, 433, 432, 431, 430, 437 },
-	{ 527, 526, 525, 524, 523, 522, 521, 528 },
-	{ 573, 572, 571, 570, 569, 568, 567, 574 }
-};
-static int facePicsFiring[][DIRECTION_COUNT] =
-{
-	{ 26, 27, 137, 138, 139, 140, 141, 33 },
-	{ 129, 130, 146, 147, 148, 149, 150, 136 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ 228, 227, 265, 264, 263, 262, 261, 229 },
-	{ 236, 235, 242, 241, 240, 239, 238, 237 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ 272, 271, 278, 277, 276, 275, 274, 273 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 },
-	{ -1, -1, -1, -1, -1, -1, -1, -1 }
-};
-static Vec2i faceOffsets[FACE_COUNT][DIRECTION_COUNT] =
-{
-	{// Jones
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	},
-	{// Ice
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Ogre
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	},
-	{// Dragon
-		{ -1, 0 }, { 0, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 1, 0 }, { 0, 0 }
-	},
-	{// WarBaby
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Bug-eye
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Smith
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Ogre Boss
-		{ 0, -1 }, { -1, -1 }, { 0, -1 }, { 0, -1 },
-		{ 0, -1 }, { 0, -1 }, { 1, -1 }, { 0, -1 }
-	},
-	{// Grunt
-		{ -1, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Professor
-		{ 0, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	},
-	{// Snake
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Wolf
-		{ -1, 0 }, { -1, 0 }, { 0, 1 }, { -1, 1 },
-		{ -1, 1 }, { -1, 1 }, { 0, 1 }, { 0, 1 }
-	},
-	{// Bob
-		{ -1, 0 }, { 0, 0 }, { 0, 1 }, { 0, 1 },
-		{ -1, 1 }, { -1, 1 }, { 0, 1 }, { 0, 0 }
-	},
-	{// Mad bug-eye
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Cyborg
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Robot
-		{ 0, 1 }, { 0, 1 }, { 0, 1 }, { 0, 1 },
-		{ 0, 1 }, { 0, 1 }, { 0, 1 }, { 0, 1 }
-	},
-	{// Lady
-		{ 0, 0 }, { 0, 0 }, { -1, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	}
-};
-static Vec2i faceOffsetsFiring[FACE_COUNT][DIRECTION_COUNT] =
-{
-	{// Jones
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 1, 0 }
-	},
-	{// Ice
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Ogre
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	},
-	{// Dragon
-		{ -1, 0 }, { 0, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 1, 0 }, { 0, 0 }
-	},
-	{// WarBaby
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Bug-eye
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Smith
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Ogre Boss
-		{ 0, -1 }, { -1, -1 }, { 0, -1 }, { 0, -1 },
-		{ 0, -1 }, { 0, -1 }, { 1, -1 }, { 0, -1 }
-	},
-	{// Grunt
-		{ -1, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Professor
-		{ 0, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	},
-	{// Snake
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Wolf
-		{ -1, 0 }, { -1, 0 }, { 0, 1 }, { -1, 1 },
-		{ -1, 1 }, { -1, 1 }, { 0, 1 }, { 0, 1 }
-	},
-	{// Bob
-		{ -1, 0 }, { 0, 0 }, { 0, 1 }, { 0, 1 },
-		{ -1, 1 }, { -1, 1 }, { 0, 1 }, { 0, 0 }
-	},
-	{// Mad bug-eye
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Cyborg
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { -1, 0 },
-		{ -1, 0 }, { -1, 0 }, { 0, 0 }, { 0, 0 }
-	},
-	{// Robot
-		{ 0, 1 }, { 0, 1 }, { 0, 1 }, { 0, 1 },
-		{ 0, 1 }, { 0, 1 }, { 0, 1 }, { 0, 1 }
-	},
-	{// Lady
-		{ 0, 0 }, { 0, 0 }, { -1, 0 }, { 0, 0 },
-		{ 0, 0 }, { 0, 0 }, { 1, 0 }, { 1, 0 }
-	}
-};
-
-
-static void SetupPalette(TPalette palette);
-bool PicManagerTryInit(
-	PicManager *pm, const char *oldGfxFile1, const char *oldGfxFile2)
+void PicManagerInit(PicManager *pm)
 {
 	memset(pm, 0, sizeof *pm);
-	pm->oldSprites = hashmap_new();
 	pm->pics = hashmap_new();
 	pm->sprites = hashmap_new();
 	pm->customPics = hashmap_new();
 	pm->customSprites = hashmap_new();
-	CArrayInit(&pm->drainPics, sizeof(NamedPic *));
 	CArrayInit(&pm->wallStyleNames, sizeof(char *));
 	CArrayInit(&pm->tileStyleNames, sizeof(char *));
 	CArrayInit(&pm->exitStyleNames, sizeof(char *));
 	CArrayInit(&pm->doorStyleNames, sizeof(char *));
 	CArrayInit(&pm->keyStyleNames, sizeof(char *));
-
-	// Load old pics
-	char buf[CDOGS_PATH_MAX];
-	GetDataFilePath(buf, oldGfxFile1);
-	int i = ReadPics(buf, pm->oldPics, PIC_COUNT1, pm->palette);
-	if (!i)
-	{
-		printf("Unable to read %s\n", buf);
-		return false;
-	}
-	GetDataFilePath(buf, oldGfxFile2);
-	if (!AppendPics(buf, pm->oldPics, PIC_COUNT1, PIC_MAX))
-	{
-		printf("Unable to read %s\n", buf);
-		return false;
-	}
-	SetupPalette(pm->palette);
-	return true;
-}
-static void SetPaletteRange(
-	TPalette palette, const int start, const color_t mask);
-static void SetupPalette(TPalette palette)
-{
-	palette[0].r = palette[0].g = palette[0].b = 0;
-
-	// Set the coloured palette ranges
-	// Note: alpha used as "channel"
-	// These pics will be recoloured on demand by the PicManager based on
-	// mission-specific colours requested during map load. Some pics will
-	// have an "alt" colour in the same pic, so to differentiate and mask
-	// each colour individually, those converted pics will use a different
-	// colour mask, to signify different recolouring channels.
-	SetPaletteRange(palette, WALL_COLORS, colorWhite);
-	SetPaletteRange(palette, FLOOR_COLORS, colorWhite);
-	SetPaletteRange(palette, ROOM_COLORS, colorWhite);
-	SetPaletteRange(palette, ALT_COLORS, colorRed);
-}
-static void SetPaletteRange(
-	TPalette palette, const int start, const color_t mask)
-{
-	for (int i = 0; i < 8; i++)
-	{
-		color_t c;
-		c.r = c.g = c.b = cWhiteValues[i];
-		c.a = 255;
-		palette[start + i] = ColorMult(c, mask);
-	}
 }
 
 static NamedPic *AddNamedPic(map_t pics, const char *name, const Pic *p);
@@ -397,6 +122,60 @@ static void PicManagerAdd(
 				pic = &np->pic;
 			}
 			PicLoad(pic, size, offset, image);
+
+			if (strncmp("chars/", buf, strlen("chars/")) == 0)
+			{
+				// Convert char pics to multichannel version
+				for (int i = 0; i < pic->size.x * pic->size.y; i++)
+				{
+					color_t c = PIXEL2COLOR(pic->Data[i]);
+					// Don't bother if the alpha has already been modified; it
+					// means we have already processed this pixel
+					if (c.a != 255)
+					{
+						continue;
+					}
+					const uint8_t value = MAX(MAX(c.r, c.g), c.b);
+					if (abs((int)c.r - c.g) < 5 && abs((int)c.g - c.b) < 5)
+					{
+						// don't convert greyscale colours
+					}
+					else if ((c.g < 5 && c.b < 5) ||
+						(abs((int)c.g - c.b) < 5 && c.r > 250))
+					{
+						// Skin
+						c.r = c.g = c.b = value;
+						c.a = 254;
+					}
+					else if ((c.r < 5 && c.b < 5) ||
+						(abs((int)c.r - c.b) < 5 && c.g > 250))
+					{
+						// Hair
+						c.r = c.g = c.b = value;
+						c.a = 250;
+					}
+					else if ((c.r < 5 && c.g < 5) ||
+						(abs((int)c.r - c.g) < 5 && c.b > 250))
+					{
+						// Arms
+						c.r = c.g = c.b = value;
+						c.a = 253;
+					}
+					else if (c.b < 5 || (c.r > 250 && c.g > 250))
+					{
+						// Body
+						c.r = c.g = c.b = value;
+						c.a = 252;
+					}
+					else if (c.r < 5 || (c.g > 250 && c.b > 250))
+					{
+						// Legs
+						c.r = c.g = c.b = value;
+						c.a = 251;
+					}
+					pic->Data[i] = COLOR2PIXEL(c);
+				}
+			}
 		}
 	}
 	SDL_UnlockSurface(image);
@@ -412,7 +191,8 @@ void PicManagerLoadDir(
 	tinydir_dir dir;
 	if (tinydir_open(&dir, path) == -1)
 	{
-		perror("Cannot open image dir");
+		LOG(LM_MAIN, LL_ERROR, "Error opening image dir '%s': %s",
+			path, strerror(errno));
 		goto bail;
 	}
 
@@ -421,7 +201,8 @@ void PicManagerLoadDir(
 		tinydir_file file;
 		if (tinydir_readfile(&dir, &file) == -1)
 		{
-			perror("Cannot read image file");
+			LOG(LM_MAIN, LL_ERROR, "Cannot read file '%s': %s",
+				file.path, strerror(errno));
 			goto bail;
 		}
 		if (file.is_reg)
@@ -433,8 +214,8 @@ void PicManagerLoadDir(
 				SDL_Surface *data = IMG_Load_RW(rwops, 0);
 				if (!data)
 				{
-					LOG(LM_MAIN, LL_ERROR, "Cannot load image");
-					LOG(LM_MAIN, LL_ERROR, "IMG_Load: %s", IMG_GetError());
+					LOG(LM_MAIN, LL_ERROR, "Cannot load image IMG_Load: %s",
+						IMG_GetError());
 				}
 				else
 				{
@@ -473,10 +254,6 @@ void PicManagerLoadDir(
 bail:
 	tinydir_close(&dir);
 }
-static void GenerateOldPics(PicManager *pm);
-static void LoadOldFacePics(
-	PicManager *pm, const char *spritesName, int facePics[][DIRECTION_COUNT],
-	Vec2i offsets[FACE_COUNT][DIRECTION_COUNT]);
 void PicManagerLoad(PicManager *pm, const char *path)
 {
 	if (!IMG_Init(IMG_INIT_PNG))
@@ -487,148 +264,9 @@ void PicManagerLoad(PicManager *pm, const char *path)
 	char buf[CDOGS_PATH_MAX];
 	GetDataFilePath(buf, path);
 	PicManagerLoadDir(pm, buf, NULL, pm->pics, pm->sprites);
-	GenerateOldPics(pm);
-
-	// Load old sprites, like the directional sprites
-	// Faces
-	LoadOldFacePics(pm, "idle", facePicsIdle, faceOffsets);
-	LoadOldFacePics(pm, "firing", facePicsFiring, faceOffsetsFiring);
-}
-static void LoadOldFacePics(
-	PicManager *pm, const char *spritesName, int facePics[][DIRECTION_COUNT],
-	Vec2i offsets[FACE_COUNT][DIRECTION_COUNT])
-{
-	for (int i = 0; i < FACE_COUNT; i++)
-	{
-		char buf[256];
-		sprintf(buf, "faces/%s_%s", faceNames[i], spritesName);
-		NamedSprites *ns = AddNamedSprites(pm->sprites, buf);
-		for (direction_e d = 0; d < DIRECTION_COUNT; d++)
-		{
-			const int facePic = facePics[i][d];
-			if (facePic < 0)
-			{
-				continue;
-			}
-			Pic p = PicCopy(PicManagerGetFromOld(pm, facePic));
-			// Add offset so we're drawing the head centered horizontally and
-			// taking into account the neck offset
-			p.offset = Vec2iAdd(
-				offsets[i][d],
-				Vec2iNew(-p.size.x / 2, NECK_OFFSET - p.size.y / 2));
-			CArrayPushBack(&ns->pics, &p);
-		}
-	}
-}
-static PicPaletted *PicManagerGetOldPic(PicManager *pm, int idx);
-static void ProcessMultichannelPic(PicManager *pm, const int picIdx);
-static void GenerateOldPics(PicManager *pm)
-{
-	// Convert old pics into new format ones
-	for (int i = 0; i < PIC_MAX; i++)
-	{
-		PicPaletted *oldPic = PicManagerGetOldPic(pm, i);
-		PicFree(&pm->picsFromOld[i]);
-		if (oldPic == NULL)
-		{
-			memcpy(&pm->picsFromOld[i], &picNone, sizeof picNone);
-		}
-		else
-		{
-			PicFromPicPaletted(&pm->picsFromOld[i], oldPic);
-		}
-	}
-
-	// For actor pics, convert them to greyscale since we'll be masking them with
-	// colours later
-	// For each channel, use a different alpha value
-	// When drawing, we'll use the alpha value (starting from 255 and counting
-	// down) to determine which custom colour mask to use
-
-	// Head/hair: detect the skin/hair pixels and put them on a different channel
-	for (int f = 0; f < FACE_COUNT; f++)
-	{
-		for (direction_e d = 0; d < DIRECTION_COUNT; d++)
-		{
-			for (int s = 0; s < STATE_COUNT + 2; s++)
-			{
-				ProcessMultichannelPic(pm, cHeadPic[f][d][s]);
-			}
-		}
-	}
-
-	// Body: detect arms, body, legs and skin
-	for (int b = 0; b < BODY_COUNT; b++)
-	{
-		for (direction_e d = 0; d < DIRECTION_COUNT; d++)
-		{
-			for (int s = 0; s < STATE_COUNT; s++)
-			{
-				ProcessMultichannelPic(pm, cBodyPic[b][d][s]);
-			}
-		}
-	}
-
-	// Gun: detect skin
-	for (gunpic_e g = 0; g < GUNPIC_COUNT; g++)
-	{
-		for (direction_e d = 0; d < DIRECTION_COUNT; d++)
-		{
-			for (gunstate_e s = 0; s < GUNSTATE_COUNT; s++)
-			{
-				ProcessMultichannelPic(pm, cGunPics[g][d][s].picIndex);
-			}
-		}
-	}
-}
-static void ProcessMultichannelPic(PicManager *pm, const int picIdx)
-{
-	const PicPaletted *old = PicManagerGetOldPic(pm, picIdx);
-	Pic *pic = PicManagerGetFromOld(pm, picIdx);
-	for (int i = 0; i < pic->size.x * pic->size.y; i++)
-	{
-		color_t c = PIXEL2COLOR(pic->Data[i]);
-		// Don't bother if the alpha has already been modified; it means
-		// we have already processed this pixel
-		if (c.a != 255)
-		{
-			continue;
-		}
-		// Note: the shades for arms, body, legs are slightly less bright than
-		// the other parts, so increase their shade to compensate
-		const uint8_t value = MAX(MAX(c.r, c.g), c.b);
-		const uint8_t value2 = (uint8_t)CLAMP(value * 1.7, 0, 255);
-		if (old->data[i] >= SKIN_START && old->data[i] <= SKIN_END)
-		{
-			c.r = c.g = c.b = value;
-			c.a = 254;
-		}
-		else if (old->data[i] >= ARMS_START && old->data[i] <= ARMS_END)
-		{
-			c.r = c.g = c.b = value2;
-			c.a = 253;
-		}
-		else if (old->data[i] >= BODY_START && old->data[i] <= BODY_END)
-		{
-			c.r = c.g = c.b = value2;
-			c.a = 252;
-		}
-		else if (old->data[i] >= LEGS_START && old->data[i] <= LEGS_END)
-		{
-			c.r = c.g = c.b = value2;
-			c.a = 251;
-		}
-		else if (old->data[i] >= HAIR_START && old->data[i] <= HAIR_END)
-		{
-			c.r = c.g = c.b = value;
-			c.a = 250;
-		}
-		pic->Data[i] = COLOR2PIXEL(c);
-	}
 }
 
 
-static void FindDrainPics(PicManager *pm);
 static void FindStylePics(
 	PicManager *pm, CArray *styleNames, PFany hashmapFunc);
 static int MaybeAddWallPicName(any_t data, any_t item);
@@ -638,25 +276,11 @@ static int MaybeAddKeyPicName(any_t data, any_t item);
 static int MaybeAddDoorPicName(any_t data, any_t item);
 static void AfterAdd(PicManager *pm)
 {
-	FindDrainPics(pm);
 	FindStylePics(pm, &pm->wallStyleNames, MaybeAddWallPicName);
 	FindStylePics(pm, &pm->tileStyleNames, MaybeAddTilePicName);
 	FindStylePics(pm, &pm->exitStyleNames, MaybeAddExitPicName);
 	FindStylePics(pm, &pm->doorStyleNames, MaybeAddDoorPicName);
 	FindStylePics(pm, &pm->keyStyleNames, MaybeAddKeyPicName);
-}
-static void FindDrainPics(PicManager *pm)
-{
-	// Scan all pics for drainage pics
-	CArrayClear(&pm->drainPics);
-	for (int i = 0;; i++)
-	{
-		char buf[CDOGS_FILENAME_MAX];
-		sprintf(buf, "drains/%d", i);
-		NamedPic *p = PicManagerGetNamedPic(pm, buf);
-		if (p == NULL) break;
-		CArrayPushBack(&pm->drainPics, &p);
-	}
 }
 static int CompareStyleNames(const void *v1, const void *v2);
 static void FindStylePics(
@@ -775,20 +399,10 @@ void PicManagerClearCustom(PicManager *pm)
 static void StylesTerminate(CArray *styles);
 void PicManagerTerminate(PicManager *pm)
 {
-	for (int i = 0; i < PIC_MAX; i++)
-	{
-		if (pm->oldPics[i] != NULL)
-		{
-			CFREE(pm->oldPics[i]);
-		}
-		PicFree(&pm->picsFromOld[i]);
-	}
-	hashmap_destroy(pm->oldSprites, NamedSpritesDestroy);
 	hashmap_destroy(pm->pics, NamedPicDestroy);
 	hashmap_destroy(pm->sprites, NamedSpritesDestroy);
 	hashmap_destroy(pm->customPics, NamedPicDestroy);
 	hashmap_destroy(pm->customSprites, NamedSpritesDestroy);
-	CArrayTerminate(&pm->drainPics);
 	StylesTerminate(&pm->wallStyleNames);
 	StylesTerminate(&pm->tileStyleNames);
 	StylesTerminate(&pm->exitStyleNames);
@@ -816,22 +430,6 @@ static void NamedSpritesDestroy(any_t data)
 	CFREE(n);
 }
 
-static PicPaletted *PicManagerGetOldPic(PicManager *pm, int idx)
-{
-	if (idx < 0)
-	{
-		return NULL;
-	}
-	return pm->oldPics[idx];
-}
-Pic *PicManagerGetFromOld(PicManager *pm, int idx)
-{
-	if (idx < 0)
-	{
-		return NULL;
-	}
-	return &pm->picsFromOld[idx];
-}
 NamedPic *PicManagerGetNamedPic(const PicManager *pm, const char *name)
 {
 	NamedPic *n;
@@ -852,29 +450,6 @@ Pic *PicManagerGetPic(const PicManager *pm, const char *name)
 	NamedPic *n = PicManagerGetNamedPic(pm, name);
 	if (n != NULL) return &n->pic;
 	return NULL;
-}
-Pic *PicManagerGet(PicManager *pm, const char *name, const int oldIdx)
-{
-	Pic *pic;
-	if (!name || name[0] == '\0')
-	{
-		goto defaultPic;
-	}
-	pic = PicManagerGetPic(pm, name);
-	if (!pic)
-	{
-		goto defaultPic;
-	}
-	return pic;
-
-defaultPic:
-	pic = PicManagerGetFromOld(pm, oldIdx);
-	CASSERT(pic != NULL, "Cannot find pic");
-	if (pic == NULL)
-	{
-		pic = PicManagerGetFromOld(pm, PIC_UZIBULLET);
-	}
-	return pic;
 }
 const NamedSprites *PicManagerGetSprites(
 	const PicManager *pm, const char *name)
@@ -1007,12 +582,6 @@ static NamedSprites *AddNamedSprites(map_t sprites, const char *name)
 	return ns;
 }
 
-NamedPic *PicManagerGetRandomDrain(PicManager *pm)
-{
-	NamedPic **p = CArrayGet(&pm->drainPics, rand() % pm->drainPics.size);
-	return *p;
-}
-
 NamedPic *PicManagerGetExitPic(
 	PicManager *pm, const char *style, const bool isShadow)
 {
@@ -1070,18 +639,4 @@ int PicManagerGetKeyStyleIndex(PicManager *pm, const char *style)
 		}
 	CA_FOREACH_END()
 	return 0;
-}
-
-Pic PicFromTOffsetPic(PicManager *pm, TOffsetPic op)
-{
-	Pic *opPic = PicManagerGetFromOld(pm, op.picIndex);
-	Pic pic;
-	if (opPic == NULL)
-	{
-		return picNone;
-	}
-	pic.size = opPic->size;
-	pic.offset = Vec2iNew(op.dx, op.dy);
-	pic.Data = opPic->Data;
-	return pic;
 }

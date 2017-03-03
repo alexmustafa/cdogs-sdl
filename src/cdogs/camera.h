@@ -26,8 +26,8 @@
 */
 #pragma once
 
-#include "draw_buffer.h"
-#include "hud.h"
+#include "draw/draw_buffer.h"
+#include "hud/hud.h"
 #include "screen_shake.h"
 
 #define CAMERA_SPLIT_PADDING 40

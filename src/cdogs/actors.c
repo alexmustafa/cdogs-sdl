@@ -22,7 +22,7 @@
     This file incorporates work covered by the following copyright and
     permission notice:
 
-    Copyright (c) 2013-2016, Cong Xu
+    Copyright (c) 2013-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -60,7 +60,7 @@
 #include "character.h"
 #include "collision.h"
 #include "config.h"
-#include "drawtools.h"
+#include "draw/drawtools.h"
 #include "events.h"
 #include "game_events.h"
 #include "log.h"
@@ -173,15 +173,15 @@ void UpdateActorState(TActor * actor, int ticks)
 	}
 
 	// Footstep sounds
-	// Step on 1
+	// Step on 2 and 6
 	// TODO: custom animation and footstep frames
 	if (ConfigGetBool(&gConfig, "Sound.Footsteps") &&
-		AnimationGetFrame(&actor->anim) == STATE_WALKING_1 &&
+		(AnimationGetFrame(&actor->anim) == 2 ||
+		AnimationGetFrame(&actor->anim) == 6) &&
 		actor->anim.newFrame)
 	{
 		SoundPlayAtPlusDistance(
-			&gSoundDevice,
-			SoundGetRandomFootstep(&gSoundDevice),
+			&gSoundDevice, StrSound("footsteps"),
 			Vec2iNew(actor->tileItem.x, actor->tileItem.y),
 			FOOTSTEP_DISTANCE_PLUS);
 	}
@@ -518,7 +518,7 @@ void InjureActor(TActor * actor, int injury)
 	{
 		actor->stateCounter = 0;
 		const Vec2i pos = Vec2iNew(actor->tileItem.x, actor->tileItem.y);
-		SoundPlayAt(&gSoundDevice, SoundGetRandomScream(&gSoundDevice), pos);
+		SoundPlayAt(&gSoundDevice, StrSound("aargh"), pos);
 		if (actor->PlayerUID >= 0)
 		{
 			SoundPlayAt(
@@ -572,6 +572,8 @@ void ActorReplaceGun(const NActorReplaceGun rg)
 	{
 		return;
 	}
+	LOG(LM_ACTOR, LL_DEBUG, "actor uid(%d) replacing gun(%s) idx(%d) size(%d)",
+		(int)rg.UID, rg.Gun, rg.GunIdx, (int)a->guns.size);
 	Weapon w = WeaponCreate(gun);
 	if (a->guns.size <= rg.GunIdx)
 	{
@@ -624,7 +626,7 @@ void Shoot(TActor *actor)
 			{
 				SoundPlayAt(
 					&gSoundDevice,
-					gSoundDevice.clickSound, Vec2iFull2Real(actor->Pos));
+					StrSound("click"), Vec2iFull2Real(actor->Pos));
 				gun->clickLock = SOUND_LOCK_WEAPON_CLICK;
 			}
 		}
@@ -1008,12 +1010,11 @@ static void ActorDie(TActor *actor)
 	// Add a blood pool
 	GameEvent e = GameEventNew(GAME_EVENT_MAP_OBJECT_ADD);
 	e.u.MapObjectAdd.UID = ObjsGetNextUID();
-	strcpy(
-		e.u.MapObjectAdd.MapObjectClass,
-		RandomBloodMapObject(&gMapObjects)->Name);
+	const MapObject *mo = RandomBloodMapObject(&gMapObjects);
+	strcpy(e.u.MapObjectAdd.MapObjectClass, mo->Name);
 	e.u.MapObjectAdd.Pos = Vec2i2Net(Vec2iFull2Real(actor->Pos));
-	e.u.MapObjectAdd.TileItemFlags = TILEITEM_IS_WRECK;
-	e.u.MapObjectAdd.Health = 0;
+	e.u.MapObjectAdd.TileItemFlags = MapObjectGetFlags(mo);
+	e.u.MapObjectAdd.Health = mo->Health;
 	GameEventsEnqueue(&gGameEvents, e);
 
 	e = GameEventNew(GAME_EVENT_ACTOR_DIE);
@@ -1262,26 +1263,6 @@ void ActorDestroy(TActor *a)
 	a->isInUse = false;
 }
 
-unsigned char BestMatch(const TPalette palette, int r, int g, int b)
-{
-	int d, dMin = 0;
-	int i;
-	int best = -1;
-
-	for (i = 0; i < 256; i++)
-	{
-		d = (r - palette[i].r) * (r - palette[i].r) +
-			(g - palette[i].g) * (g - palette[i].g) +
-			(b - palette[i].b) * (b - palette[i].b);
-		if (best < 0 || d < dMin)
-		{
-			best = i;
-			dMin = d;
-		}
-	}
-	return (unsigned char)best;
-}
-
 TActor *ActorGetByUID(const int uid)
 {
 	CA_FOREACH(TActor, a, gActors)
@@ -1330,6 +1311,7 @@ void ActorSwitchGun(const NActorSwitchGun sg)
 {
 	TActor *a = ActorGetByUID(sg.UID);
 	if (a == NULL || !a->isInUse) return;
+	CASSERT(sg.GunIdx < a->guns.size, "can't switch to unavailable gun");
 	a->gunIndex = sg.GunIdx;
 	SoundPlayAt(
 		&gSoundDevice,
@@ -1454,15 +1436,13 @@ bool ActorIsInvulnerable(
 
 void ActorAddBloodSplatters(TActor *a, const int power, const Vec2i hitVector)
 {
-	const GoreAmount ga = ConfigGetEnum(&gConfig, "Game.Gore");
+	const GoreAmount ga = ConfigGetEnum(&gConfig, "Graphics.Gore");
 	if (ga == GORE_NONE) return;
 
 	// Emit blood based on power and gore setting
 	int bloodPower = power * 2;
 	// Randomly cycle through the blood types
 	int bloodSize = 1;
-	// Spray the blood back with the shot if pushback enabled
-	const bool shotsPushBack = ConfigGetBool(&gConfig, "Game.ShotsPushback");
 	while (bloodPower > 0)
 	{
 		Emitter *em = NULL;
@@ -1483,18 +1463,9 @@ void ActorAddBloodSplatters(TActor *a, const int power, const Vec2i hitVector)
 		{
 			bloodSize = 1;
 		}
-		Vec2i vel;
-		if (shotsPushBack)
-		{
-			vel = Vec2iScaleDiv(
-				Vec2iScale(hitVector, (rand() % 8 + 8) * power),
-				15 * SHOT_IMPULSE_DIVISOR);
-		}
-		else
-		{
-			vel = Vec2iScaleDiv(
-				Vec2iScale(hitVector, rand() % 8 + 8), 20);
-		}
+		const Vec2i vel = Vec2iScaleDiv(
+			Vec2iScale(hitVector, (rand() % 8 + 8) * power),
+			15 * SHOT_IMPULSE_DIVISOR);
 		EmitterStart(em, a->Pos, 10, vel);
 		switch (ga)
 		{

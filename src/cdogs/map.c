@@ -245,10 +245,6 @@ void MapChangeFloor(
 	Tile *tAbove = MapGetTile(map, Vec2iNew(pos.x, pos.y - 1));
 	int canSeeTileAbove = !(pos.y > 0 && !TileCanSee(tAbove));
 	Tile *t = MapGetTile(map, pos);
-	if (t->flags & MAPTILE_IS_DRAINAGE)
-	{
-		return;
-	}
 	switch (IMapGet(map, pos) & MAP_MASKACCESS)
 	{
 	case MAP_FLOOR:
@@ -375,8 +371,7 @@ bool MapTryPlaceOneObject(
 		return false;
 	}
 	Vec2i realPos = Vec2iCenterOfTile(v);
-	int tileFlags = 0;
-	Tile *t = MapGetTile(map, v);
+	const Tile *t = MapGetTile(map, v);
 	unsigned short iMap = IMapGet(map, v);
 
 	const bool isEmpty = TileIsClear(t);
@@ -407,43 +402,14 @@ bool MapTryPlaceOneObject(
 		realPos.y -= TILE_HEIGHT / 2 + 1;
 	}
 
-	if (MapObjectIsWreck(mo))
-	{
-		tileFlags |= TILEITEM_IS_WRECK;
-	}
-	else if (!(mo->Flags & (1 << PLACEMENT_ON_WALL)))
-	{
-		tileFlags |= TILEITEM_IMPASSABLE;
-		tileFlags |= TILEITEM_CAN_BE_SHOT;
-	}
-
 	NMapObjectAdd amo = NMapObjectAdd_init_default;
 	amo.UID = ObjsGetNextUID();
 	strcpy(amo.MapObjectClass, mo->Name);
 	amo.Pos = Vec2i2Net(realPos);
-	amo.TileItemFlags = tileFlags | extraFlags;
+	amo.TileItemFlags = MapObjectGetFlags(mo) | extraFlags;
 	amo.Health = mo->Health;
 	ObjAdd(amo);
 	return true;
-}
-
-void MapPlaceWreck(Map *map, const Vec2i v, const MapObject *mo)
-{
-	Tile *t = MapGetTile(map, v);
-	unsigned short iMap = IMapGet(map, v);
-	if (!MapObjectIsTileOK(
-		mo, iMap, TileIsClear(t), IMapGet(map, Vec2iNew(v.x, v.y - 1))))
-	{
-		return;
-	}
-	NMapObjectAdd amo = NMapObjectAdd_init_default;
-	amo.UID = ObjsGetNextUID();
-	strcpy(amo.MapObjectClass, mo->Name);
-	amo.Pos = Vec2i2Net(Vec2iCenterOfTile(v));
-	amo.TileItemFlags = TILEITEM_IS_WRECK;
-	// Set health to 0 to force into a wreck
-	amo.Health = 0;
-	ObjAdd(amo);
 }
 
 int MapHasLockedRooms(Map *map)
@@ -709,6 +675,25 @@ void MapLoad(
 
 	MapSetupTilesAndWalls(map, mission);
 	MapSetupDoors(map, mission);
+
+	if (mission->Type == MAPTYPE_CLASSIC)
+	{
+		// Randomly add drainage tiles for classic map type;
+		// For other map types drains are regular map objects
+		const MapObject *drain = StrMapObject("drain0");
+		for (int i = 0; i < map->Size.x*map->Size.y / 45; i++)
+		{
+			// Make sure drain tiles aren't next to each other
+			v = Vec2iNew(
+				(rand() % map->Size.x) & 0xFFFFFE,
+				(rand() % map->Size.y) & 0xFFFFFE);
+			const Tile *t = MapGetTile(map, v);
+			if (TileIsNormalFloor(t))
+			{
+				MapTryPlaceOneObject(map, v, drain, 0, false);
+			}
+		}
+	}
 
 	// Set exit now since we have set up all the tiles
 	if (Vec2iIsZero(map->ExitStart) && Vec2iIsZero(map->ExitEnd))

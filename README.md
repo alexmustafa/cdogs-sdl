@@ -1,10 +1,10 @@
 ![C-Dogs SDL](http://cxong.github.io/cdogs-sdl/images/title.png)
 ==========
 [![Build Status](https://travis-ci.org/cxong/cdogs-sdl.svg?branch=master)](https://travis-ci.org/cxong/cdogs-sdl)
+[![Build Status (Windows)](https://ci.appveyor.com/api/projects/status/github/cxong/cdogs-sdl?svg=true)](https://ci.appveyor.com/project/cxong/cdogs-sdl)
 [![Github All Releases](https://img.shields.io/github/downloads/cxong/cdogs-sdl/total.svg)](https://github.com/cxong/cdogs-sdl/releases)
 [![Release](http://img.shields.io/github/release/cxong/cdogs-sdl.svg)](https://github.com/cxong/cdogs-sdl/releases/latest)
 [![Project Stats](https://www.openhub.net/p/cdogs-sdl-fork/widgets/project_thin_badge.gif)](https://www.openhub.net/p/cdogs-sdl-fork)
-![License: GPL2](https://img.shields.io/github/license/cxong/cdogs-sdl.svg)
 
 ![](https://github.com/cxong/cdogs-sdl/blob/master/graphics/radio.png) Introduction
 ---------------

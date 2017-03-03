@@ -11,7 +11,7 @@ project(cdogs-sdl C)
 
 SET(VERSION_MAJOR "0")
 SET(VERSION_MINOR "6")
-SET(VERSION_PATCH "2")
+SET(VERSION_PATCH "3")
 SET(VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 # this must be 4 numbers
 SET(VERSION_RC "${VERSION_MAJOR},${VERSION_MINOR},${VERSION_PATCH},0")
@@ -84,6 +84,7 @@ else()
 	add_definitions(
 		-fsigned-char
 		-Wall -W
+		-Wno-deprecated-declarations # TODO: this avoids error on deprecated readdir_r() call. Proper way to fix this bug is change readdir_r() to readdir()
 		-Wstrict-prototypes -Wpointer-arith -Wcast-qual)
 	if(DEBUG)
 		ADD_DEFINITIONS(-g)
@@ -121,6 +122,9 @@ if(NOT DEFINED CDOGS_DATA_DIR)
 	endif()
 endif()
 message("Data dir is ${CDOGS_DATA_DIR}")
+if(NOT DEFINED DATA_INSTALL_DIR)
+  set(DATA_INSTALL_DIR "${CDOGS_DATA_DIR}")
+endif()
 if(WIN32)
 	set(CDOGS_CFG_DIR "C-Dogs SDL/")
 else()
@@ -137,7 +141,7 @@ IF(WIN32)
 ENDIF()
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/src/cdogs/sys_config.h.cmake ${CMAKE_SOURCE_DIR}/src/cdogs/sys_config.h)
 SET_SOURCE_FILES_PROPERTIES(${CMAKE_SOURCE_DIR}/src/cdogs/sys_config.h PROPERTIES GENERATED TRUE)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src ${CMAKE_CURRENT_BINARY_DIR}/src/cdogs)
+include_directories(src src/cdogs)
 
 #Tests
 enable_testing()
@@ -160,26 +164,23 @@ set_target_properties(cdogs-sdl-editor PROPERTIES
 
 # Executables
 set(INSTALL_PREFIX ".")
+set(EXE_EXTENSION "")
 if(WIN32)
 	set(EXE_EXTENSION ".exe")
 	set(LIB_EXTENSION ".dll")
 elseif(APPLE)
 	set(LIB_EXTENSION ".dylib")
+  set(DATA_INSTALL_DIR "cdogs-sdl")
 	set(INSTALL_PREFIX "cdogs-sdl")
 else()
-	set(EXE_EXTENSION "")
 	set(LIB_EXTENSION ".so")
+	set(INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 endif()
-if(APPLE)
-	install(
-		DIRECTORY src/cdogs-sdl.app src/cdogs-sdl-editor.app
-		DESTINATION ${INSTALL_PREFIX}/bin
-		USE_SOURCE_PERMISSIONS)
-else()
-	install(
-		PROGRAMS src/cdogs-sdl${EXE_EXTENSION} src/cdogs-sdl-editor${EXE_EXTENSION}
-		DESTINATION ${INSTALL_PREFIX}/bin)
-endif()
+install(
+  PROGRAMS
+    ${CMAKE_CURRENT_BINARY_DIR}/src/cdogs-sdl${EXE_EXTENSION}
+    ${CMAKE_CURRENT_BINARY_DIR}/src/cdogs-sdl-editor${EXE_EXTENSION}
+  DESTINATION ${INSTALL_PREFIX}/bin)
 
 INSTALL(DIRECTORY
 	${CMAKE_SOURCE_DIR}/doc
@@ -189,17 +190,21 @@ INSTALL(DIRECTORY
 	${CMAKE_SOURCE_DIR}/graphics
 	${CMAKE_SOURCE_DIR}/music
 	${CMAKE_SOURCE_DIR}/sounds
-	DESTINATION ${INSTALL_PREFIX})
+	DESTINATION ${DATA_INSTALL_DIR})
 INSTALL(FILES
 	${CMAKE_SOURCE_DIR}/cdogs_icon.bmp
 	${CMAKE_SOURCE_DIR}/README.md
-	DESTINATION ${INSTALL_PREFIX})
+	DESTINATION ${DATA_INSTALL_DIR})
 IF(UNIX AND NOT APPLE AND NOT BEOS AND NOT HAIKU)
-	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-sdl.desktop DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications)
-	INSTALL(FILES ${CMAKE_SOURCE_DIR}/cdogs-sdl.png DESTINATION ${CMAKE_INSTALL_PREFIX}/share/icons)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-sdl.desktop DESTINATION ${INSTALL_PREFIX}/share/applications)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-sdl.appdata.xml DESTINATION ${INSTALL_PREFIX}/share/appdata)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-icon.16.png DESTINATION ${INSTALL_PREFIX}/share/icons/hicolor/16x16/apps/cdogs-sdl.png)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-icon.22.png DESTINATION ${INSTALL_PREFIX}/share/icons/hicolor/22x22/apps/cdogs-sdl.png)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-icon.32.png DESTINATION ${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps/cdogs-sdl.png)
+	INSTALL(FILES ${CMAKE_SOURCE_DIR}/build/linux/cdogs-icon.48.png DESTINATION ${INSTALL_PREFIX}/share/icons/hicolor/48x48/apps/cdogs-sdl.png)
 elseif(WIN32)
 	# Package for Windows
-	FILE(GLOB DLLS "${CMAKE_SOURCE_DIR}/src/*.dll")
+	FILE(GLOB DLLS "${CMAKE_SOURCE_DIR}/dll/*.dll")
 	FOREACH(DLL ${DLLS})
 		INSTALL(FILES "${DLL}" DESTINATION ${INSTALL_PREFIX}/bin)
 	ENDFOREACH()
@@ -240,13 +245,13 @@ elseif(APPLE)
 	set(CPACK_DMG_DS_STORE
 		"${CMAKE_CURRENT_BINARY_DIR}/build/macosx/DS_Store")
 
-	# copy SDL frameworks into app bundle for Mac OS X
+	# copy SDL frameworks
 	set(APPS cdogs-sdl cdogs-sdl-editor)
 	set(LIBS SDL2 SDL2_image SDL2_mixer)
 	foreach(APP ${APPS})
 		foreach(LIB ${LIBS})
 			install(DIRECTORY /Library/Frameworks/${LIB}.framework
-				DESTINATION ${INSTALL_PREFIX}/bin/${APP}.app/Contents/Frameworks)
+				DESTINATION ${INSTALL_PREFIX}/Frameworks)
 		endforeach()
 	endforeach()
 elseif(BEOS OR HAIKU)
@@ -257,7 +262,9 @@ elseif(BEOS OR HAIKU)
 		PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 else()
 	# probably linux
-	set(CPACK_GENERATOR TGZ;DEB;RPM)
+
+	# Pack only tar.gz since deb and rpm packages may differ in distros
+	set(CPACK_GENERATOR TGZ)
 
 	# debian specific
 	set(CPACK_DEBIAN_PACKAGE_MAINTAINER "C-Dogs SDL Team")

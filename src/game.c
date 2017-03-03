@@ -64,7 +64,7 @@
 #include <cdogs/automap.h>
 #include <cdogs/camera.h>
 #include <cdogs/config.h>
-#include <cdogs/drawtools.h>
+#include <cdogs/draw/drawtools.h>
 #include <cdogs/events.h>
 #include <cdogs/game_events.h>
 #include <cdogs/grafx_bg.h>
@@ -365,15 +365,6 @@ static void RunGameInput(void *data)
 		}
 	CA_FOREACH_END()
 
-	// Check if automap key is pressed by any player
-	// Toggle
-	if (IsAutoMapEnabled(gCampaign.Entry.Mode) &&
-		(KeyIsPressed(&gEventHandlers.keyboard, ConfigGetInt(&gConfig, "Input.PlayerCodes0.map")) ||
-		((cmdAll & CMD_MAP) && !(lastCmdAll & CMD_MAP))))
-	{
-		rData->isMap = !rData->isMap;
-	}
-
 	// Check if:
 	// - escape was pressed, or
 	// - window lost focus
@@ -388,6 +379,7 @@ static void RunGameInput(void *data)
 	{
 		// Pause the game
 		rData->pausingDevice = firstPausingDevice;
+		rData->isMap = false;
 	}
 	else if (pausingDevice != INPUT_DEVICE_UNSET)
 	{
@@ -405,6 +397,22 @@ static void RunGameInput(void *data)
 		{
 			// Pause the game
 			rData->pausingDevice = pausingDevice;
+			rData->isMap = false;
+		}
+	}
+
+	const bool paused =
+		rData->pausingDevice != INPUT_DEVICE_UNSET ||
+		rData->controllerUnplugged;
+	if (!paused)
+	{
+		// Check if automap key is pressed by any player
+		// Toggle
+		if (IsAutoMapEnabled(gCampaign.Entry.Mode) &&
+			(KeyIsPressed(&gEventHandlers.keyboard, ConfigGetInt(&gConfig, "Input.PlayerCodes0.map")) ||
+			((cmdAll & CMD_MAP) && !(lastCmdAll & CMD_MAP))))
+		{
+			rData->isMap = !rData->isMap;
 		}
 	}
 

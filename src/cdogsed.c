@@ -22,7 +22,7 @@
     This file incorporates work covered by the following copyright and
     permission notice:
 
-    Copyright (c) 2013-2016, Cong Xu
+    Copyright (c) 2013-2017, Cong Xu
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -64,8 +64,8 @@
 #include <cdogs/character_class.h>
 #include <cdogs/collision.h>
 #include <cdogs/config_io.h>
-#include <cdogs/draw.h>
-#include <cdogs/drawtools.h>
+#include <cdogs/draw/draw.h>
+#include <cdogs/draw/drawtools.h>
 #include <cdogs/events.h>
 #include <cdogs/files.h>
 #include <cdogs/font_utils.h>
@@ -242,7 +242,7 @@ static void Display(GraphicsDevice *g, HandleInputResult result)
 	if (fileChanged)
 	{
 		// Display a disk icon to show the game needs saving
-		const Pic *pic = PicManagerGetFromOld(&gPicManager, 221);
+		const Pic *pic = PicManagerGetPic(&gPicManager, "disk1");
 		Blit(&gGraphicsDevice, pic, Vec2iNew(10, y));
 	}
 
@@ -462,8 +462,10 @@ static void Open(void)
 		tinydir_dir dir;
 		char buf[CDOGS_PATH_MAX];
 		PathGetDirname(buf, filename);
+		char tabCompleteCandidate[CDOGS_PATH_MAX];
 		if (!tinydir_open_sorted(&dir, buf))
 		{
+			int numCandidates = 0;
 			const char *basename = PathGetBasename(filename);
 			pos.x = x;
 			pos.y += FontH() * 2;
@@ -473,20 +475,37 @@ static void Open(void)
 				tinydir_readfile_n(&dir, &file, i);
 				if (strncmp(file.name, basename, strlen(basename)) == 0)
 				{
-					// Ignore files that aren't campaigns
+					// Ignore files that aren't campaigns or interesting folders
 					if (file.name[0] == '.') continue;
-					if (!file.is_dir &&
-						strcmp(file.extension, "cdogscpn") != 0 &&
-						strcmp(file.extension, "CDOGSCPN") != 0 &&
-						strcmp(file.extension, "cpn") != 0 &&
-						strcmp(file.extension, "CPN") != 0)
+					const bool canOpen =
+						strcmp(file.extension, "cdogscpn") == 0 ||
+						strcmp(file.extension, "CDOGSCPN") == 0 ||
+						strcmp(file.extension, "cpn") == 0 ||
+						strcmp(file.extension, "CPN") == 0;
+					if (!canOpen && !file.is_dir)
+					{
 						continue;
-					pos = FontStrMask(file.path, pos, colorGray);
+					}
+					numCandidates++;
+					strcpy(tabCompleteCandidate, file.path);
+					const color_t c = canOpen ? colorCyan : colorGray;
+					pos = FontStrMask(file.path, pos, c);
+					if (!canOpen)
+					{
+						FontStrMask("/", pos, c);
+						strcat(tabCompleteCandidate, "/");
+					}
 					pos.x = x;
 					pos.y += FontH();
 				}
 			}
 			tinydir_close(&dir);
+
+			// See if there is only one candidate for tab-completion
+			if (numCandidates > 1)
+			{
+				tabCompleteCandidate[0] = '\0';
+			}
 		}
 
 		BlitFlip(&gGraphicsDevice);
@@ -511,6 +530,14 @@ static void Open(void)
 		case SDL_SCANCODE_BACKSPACE:
 			if (filename[0])
 				filename[strlen(filename) - 1] = 0;
+			break;
+
+		case SDL_SCANCODE_TAB:
+			// tab completion - replace filename buffer with it
+			if (tabCompleteCandidate[0])
+			{
+				strcpy(filename, tabCompleteCandidate);
+			}
 			break;
 
 		default:
@@ -540,7 +567,7 @@ static void Open(void)
 			}
 			// Try adding .cpn
 			sprintf(buf, "%s.cpn", filename);
-			if (TryOpen(filename))
+			if (TryOpen(buf))
 			{
 				done = true;
 				break;
@@ -761,6 +788,7 @@ static HandleInputResult HandleInput(
 	HandleInputResult result = { false, false, false, false };
 	Mission *mission = CampaignGetCurrentMission(&gCampaign);
 	UIObject *o = NULL;
+	const Vec2i brushLastDrawPos = brush.Pos;
 	brush.Pos = GetMouseTile(&gEventHandlers);
 	const bool shift = gEventHandlers.keyboard.modState & KMOD_SHIFT;
 
@@ -802,7 +830,7 @@ static HandleInputResult HandleInput(
 	}
 
 	// Also need to redraw if the brush is active to update the highlight
-	if (brush.IsActive)
+	if (brush.IsActive && !Vec2iEqual(brushLastDrawPos, brush.Pos))
 	{
 		result.Redraw = true;
 	}
@@ -812,7 +840,10 @@ static HandleInputResult HandleInput(
 		MouseWheel(&gEventHandlers.mouse).y != 0))
 	{
 		result.Redraw = true;
-		UITryGetObject(sLastHighlightedObj, mousePos, &o);
+		if (sLastHighlightedObj && !sLastHighlightedObj->IsBackground)
+		{
+			UITryGetObject(sLastHighlightedObj, mousePos, &o);
+		}
 		if (o == NULL)
 		{
 			UITryGetObject(sObjs, mousePos, &o);
@@ -1306,12 +1337,7 @@ int main(int argc, char *argv[])
 	strcpy(lastFile, "");
 
 	gConfig = ConfigLoad(GetConfigFilePath(CONFIG_FILE));
-	if (!PicManagerTryInit(
-		&gPicManager, "graphics/cdogs.px", "graphics/cdogs2.px"))
-	{
-		exit(0);
-	}
-	memcpy(origPalette, gPicManager.palette, sizeof origPalette);
+	PicManagerInit(&gPicManager);
 	// Hardcode config settings
 	ConfigGet(&gConfig, "Graphics.ScaleFactor")->u.Int.Value = 2;
 	ConfigGet(&gConfig, "Graphics.ScaleMode")->u.Enum.Value = SCALE_MODE_NN;
@@ -1322,7 +1348,7 @@ int main(int argc, char *argv[])
 	ConfigSetChanged(&gConfig);
 	GraphicsInit(&gGraphicsDevice, &gConfig);
 	gGraphicsDevice.cachedConfig.IsEditor = true;
-	GraphicsInitialize(&gGraphicsDevice, false);
+	GraphicsInitialize(&gGraphicsDevice);
 	if (!gGraphicsDevice.IsInitialized)
 	{
 		printf("Video didn't init!\n");
@@ -1330,6 +1356,7 @@ int main(int argc, char *argv[])
 	}
 	FontLoadFromJSON(&gFont, "graphics/font.png", "graphics/font.json");
 	PicManagerLoad(&gPicManager, "graphics");
+	CharSpriteClassesInit(&gCharSpriteClasses);
 
 	ParticleClassesInit(&gParticleClasses, "data/particles.json");
 	AmmoInitialize(&gAmmo, "data/ammo.json");
@@ -1400,6 +1427,7 @@ int main(int argc, char *argv[])
 
 	DrawBufferTerminate(&sDrawBuffer);
 	GraphicsTerminate(&gGraphicsDevice);
+	CharSpriteClassesTerminate(&gCharSpriteClasses);
 	PicManagerTerminate(&gPicManager);
 	FontTerminate(&gFont);
 
@@ -1408,6 +1436,7 @@ int main(int argc, char *argv[])
 	EditorBrushTerminate(&brush);
 
 	ConfigDestroy(&gConfig);
+	LogTerminate();
 
 	SDL_Quit();
 

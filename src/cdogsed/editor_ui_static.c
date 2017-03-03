@@ -31,7 +31,7 @@
 
 #include <SDL_image.h>
 
-#include <cdogs/draw.h>
+#include <cdogs/draw/draw.h>
 #include <cdogs/events.h>
 #include <cdogs/font.h>
 #include <cdogs/map.h>
@@ -182,7 +182,6 @@ static int BrushIsBrushTypeAddItem(void *data)
 	return
 		b->Type == BRUSHTYPE_SET_PLAYER_START ||
 		b->Type == BRUSHTYPE_ADD_ITEM ||
-		b->Type == BRUSHTYPE_ADD_WRECK ||
 		b->Type == BRUSHTYPE_ADD_CHARACTER ||
 		b->Type == BRUSHTYPE_ADD_KEY;
 }

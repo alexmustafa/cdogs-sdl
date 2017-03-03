@@ -148,9 +148,9 @@ static void HandleGameEvent(
 		{
 			PlayerData *p = PlayerDataGetByUID(e.u.Score.PlayerUID);
 			PlayerScore(p, e.u.Score.Score);
-			HUDAddUpdate(
-				&camera->HUD,
-				NUMBER_UPDATE_SCORE, e.u.Score.PlayerUID, e.u.Score.Score);
+			HUDNumPopupsAdd(
+				&camera->HUD.numPopups,
+				NUMBER_POPUP_SCORE, e.u.Score.PlayerUID, e.u.Score.Score);
 		}
 		break;
 	case GAME_EVENT_SOUND_AT:
@@ -211,8 +211,7 @@ static void HandleGameEvent(
 			if (ConfigGetBool(&gConfig, "Sound.Footsteps"))
 			{
 				SoundPlayAt(
-					&gSoundDevice,
-					gSoundDevice.slideSound,
+					&gSoundDevice, StrSound("slide"),
 					Vec2iNew(a->tileItem.x, a->tileItem.y));
 			}
 		}
@@ -249,8 +248,7 @@ static void HandleGameEvent(
 			ActorHeal(a, e.u.Heal.Amount);
 			// Sound of healing
 			SoundPlayAt(
-				&gSoundDevice,
-				gSoundDevice.healthSound, Vec2iFull2Real(a->Pos));
+				&gSoundDevice, StrSound("health"), Vec2iFull2Real(a->Pos));
 			// Tell the spawner that we took a health so we can
 			// spawn more (but only if we're the server)
 			if (e.u.Heal.IsRandomSpawned && !gCampaign.IsClient)
@@ -259,8 +257,8 @@ static void HandleGameEvent(
 			}
 			if (e.u.Heal.PlayerUID >= 0)
 			{
-				HUDAddUpdate(
-					&camera->HUD, NUMBER_UPDATE_HEALTH,
+				HUDNumPopupsAdd(
+					&camera->HUD.numPopups, NUMBER_POPUP_HEALTH,
 					e.u.Heal.PlayerUID, e.u.Heal.Amount);
 			}
 		}
@@ -279,8 +277,8 @@ static void HandleGameEvent(
 			}
 			if (e.u.AddAmmo.PlayerUID >= 0)
 			{
-				HUDAddUpdate(
-					&camera->HUD, NUMBER_UPDATE_AMMO,
+				HUDNumPopupsAdd(
+					&camera->HUD.numPopups, NUMBER_POPUP_AMMO,
 					e.u.AddAmmo.PlayerUID, e.u.AddAmmo.Amount);
 			}
 		}
@@ -292,8 +290,8 @@ static void HandleGameEvent(
 			ActorAddAmmo(a, e.u.UseAmmo.AmmoId, -(int)e.u.UseAmmo.Amount);
 			if (e.u.UseAmmo.PlayerUID >= 0)
 			{
-				HUDAddUpdate(
-					&camera->HUD, NUMBER_UPDATE_AMMO,
+				HUDNumPopupsAdd(
+					&camera->HUD.numPopups, NUMBER_POPUP_AMMO,
 					e.u.UseAmmo.PlayerUID, -(int)e.u.UseAmmo.Amount);
 			}
 		}
@@ -338,9 +336,10 @@ static void HandleGameEvent(
 			}
 			if (!gCampaign.IsClient)
 			{
+				// TODO: melee hitback (vel)?
 				Damage(
 					Vec2iZero(),
-					b->Power,
+					b->Power, b->Mass,
 					a->flags, a->PlayerUID, a->uid,
 					(TileItemKind)e.u.Melee.TargetKind, e.u.Melee.TargetUID,
 					SPECIAL_NONE);
@@ -502,8 +501,8 @@ static void HandleGameEvent(
 					a, e.u.ActorHit.Power, e.u.ActorHit.HitterPlayerUID);
 				if (e.u.ActorHit.PlayerUID >= 0)
 				{
-					HUDAddUpdate(
-						&camera->HUD, NUMBER_UPDATE_HEALTH,
+					HUDNumPopupsAdd(
+						&camera->HUD.numPopups, NUMBER_POPUP_HEALTH,
 						e.u.ActorHit.PlayerUID, -e.u.ActorHit.Power);
 				}
 
@@ -576,17 +575,17 @@ static void HandleGameEvent(
 			// Display a text update effect for the objective
 			if (camera != NULL)
 			{
-				HUDAddUpdate(
-					&camera->HUD, NUMBER_UPDATE_OBJECTIVE,
-					e.u.ObjectiveUpdate.ObjectiveId, e.u.ObjectiveUpdate.Count);
+				HUDNumPopupsAdd(
+					&camera->HUD.numPopups, NUMBER_POPUP_OBJECTIVE,
+					e.u.ObjectiveUpdate.ObjectiveId,
+					e.u.ObjectiveUpdate.Count);
 			}
 			MissionSetMessageIfComplete(&gMission);
 		}
 		break;
 	case GAME_EVENT_ADD_KEYS:
 		gMission.KeyFlags |= e.u.AddKeys.KeyFlags;
-		SoundPlayAt(
-			&gSoundDevice, gSoundDevice.keySound, Net2Vec2i(e.u.AddKeys.Pos));
+		SoundPlayAt(&gSoundDevice, StrSound("key"), Net2Vec2i(e.u.AddKeys.Pos));
 		// Clear cache since we may now have new paths
 		PathCacheClear(&gPathCache);
 		break;

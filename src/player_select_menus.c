@@ -32,8 +32,8 @@
 #include <stddef.h>
 
 #include <cdogs/character_class.h>
-#include <cdogs/draw.h>
-#include <cdogs/drawtools.h>
+#include <cdogs/draw/draw.h>
+#include <cdogs/draw/drawtools.h>
 #include <cdogs/font.h>
 #include <cdogs/player_template.h>
 
@@ -535,6 +535,6 @@ static void PostInputRotatePlayer(menu_t *menu, int cmd, void *data)
 	{
 		d->Dir = (direction_e)CLAMP_OPPOSITE(
 			(int)d->Dir + dx, DIRECTION_UP, DIRECTION_UPLEFT);
-		SoundPlay(&gSoundDevice, SoundGetRandomFootstep(&gSoundDevice));
+		SoundPlay(&gSoundDevice, StrSound("footsteps"));
 	}
 }

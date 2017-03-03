@@ -30,8 +30,9 @@
 #include <assert.h>
 
 #include <cdogs/door.h>
-#include <cdogs/draw.h>
-#include <cdogs/drawtools.h>
+#include <cdogs/draw/draw.h>
+#include <cdogs/draw/draw_actor.h>
+#include <cdogs/draw/drawtools.h>
 #include <cdogs/events.h>
 #include <cdogs/files.h>
 #include <cdogs/font.h>
@@ -922,6 +923,12 @@ static void MissionChangeSpecialChar(void *vData, int d)
 	*(int *)CArrayGet(
 		&data->co->Setting.characters.specialIds, data->index) = c;
 }
+static void DeactivateBrush(UIObject *o, void *data)
+{
+	UNUSED(o);
+	EditorBrush *b = data;
+	b->IsActive = false;
+}
 
 
 static UIObject *CreateCampaignObjs(CampaignOptions *co);
@@ -955,10 +962,12 @@ UIObject *CreateMainObjs(CampaignOptions *co, EditorBrush *brush, Vec2i size)
 	cc->Data = cData;
 	cc->IsDynamicData = true;
 
+	UIObject *o;
+
 	// Collapse button
 	cData->collapsePic = PicManagerGetPic(&gPicManager, "editor/collapse");
 	cData->expandPic = PicManagerGetPic(&gPicManager, "editor/expand");
-	UIObject *o = UIObjectCreate(
+	o = UIObjectCreate(
 		UITYPE_BUTTON, 0,
 		Vec2iMinus(size, cData->collapsePic->size), Vec2iZero());
 	UIButtonSetPic(o, cData->collapsePic);
@@ -976,9 +985,10 @@ UIObject *CreateMainObjs(CampaignOptions *co, EditorBrush *brush, Vec2i size)
 
 	// Background
 	o = UIObjectCreate(UITYPE_CUSTOM, 0, Vec2iZero(), size);
-	o->DoNotHighlight = true;
+	o->IsBackground = true;
 	o->u.CustomDrawFunc = DrawBackground;
-	o->Data = cData;
+	o->OnFocusFunc = DeactivateBrush;
+	o->Data = brush;
 	UIObjectAddChild(cc, o);
 	cData->background = o;
 
@@ -1009,12 +1019,28 @@ static void DrawBackground(
 	UIObject *o, GraphicsDevice *g, Vec2i pos, void *data)
 {
 	UNUSED(data);
+	// Only draw background over completely transparent pixels
+	const color_t c = { 32, 32, 64, 196 };
+	const Uint32 p = COLOR2PIXEL(c);
 	Vec2i v;
 	for (v.y = 0; v.y < o->Size.y; v.y++)
 	{
 		for (v.x = 0; v.x < o->Size.x; v.x++)
 		{
-			DrawPointTint(g, Vec2iAdd(v, pos), tintDarker);
+			const Vec2i pos1 = Vec2iAdd(pos, v);
+			if (pos1.x < g->clipping.left || pos1.x > g->clipping.right ||
+				pos1.y < g->clipping.top || pos1.y > g->clipping.bottom)
+			{
+				continue;
+			}
+			const int idx = PixelIndex(
+				pos1.x, pos1.y, g->cachedConfig.Res.x, g->cachedConfig.Res.y);
+			const color_t existing = PIXEL2COLOR(g->buf[idx]);
+			if (existing.a != 0)
+			{
+				continue;
+			}
+			g->buf[idx] = p;
 		}
 	}
 }

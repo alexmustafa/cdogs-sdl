@@ -517,12 +517,45 @@ void ConfigSetInt(Config *c, const char *name, const int value)
 {
 	c = ConfigGet(c, name);
 	CASSERT(c->Type == CONFIG_TYPE_INT, "wrong config type");
-	c->u.Int.Value = value;
-	if (c->u.Int.Min > 0)
-		c->u.Int.Value = MAX(c->u.Int.Value, c->u.Int.Min);
-	if (c->u.Int.Max > 0)
-		c->u.Int.Value = MIN(c->u.Int.Value, c->u.Int.Max);
+	c->u.Int.Value = CLAMP(value, c->u.Int.Min, c->u.Int.Max);
 }
+
+void ConfigSetFloat(Config *c, const char *name, const double value)
+{
+	c = ConfigGet(c, name);
+	CASSERT(c->Type == CONFIG_TYPE_FLOAT, "wrong config type");
+	c->u.Float.Value = CLAMP(value, c->u.Float.Min, c->u.Float.Max);
+}
+
+bool ConfigTrySetFromString(Config *c, const char *name, const char *value)
+{
+	Config *child = ConfigGet(c, name);
+	switch (child->Type)
+	{
+	case CONFIG_TYPE_STRING:
+		CASSERT(false, "unimplemented");
+		return false;
+	case CONFIG_TYPE_INT:
+		ConfigSetInt(c, name, atoi(value));
+		return true;
+	case CONFIG_TYPE_FLOAT:
+		ConfigSetFloat(c, name, atof(value));
+		return true;
+	case CONFIG_TYPE_BOOL:
+		child->u.Bool.Value = strcmp(value, "true") == 0;
+		return false;
+	case CONFIG_TYPE_ENUM:
+		CASSERT(false, "unimplemented");
+		return false;
+	case CONFIG_TYPE_GROUP:
+		CASSERT(false, "Cannot set group config");
+		return false;
+	default:
+		CASSERT(false, "Unknown config type");
+		return false;
+	}
+}
+
 
 Config ConfigDefault(void)
 {
@@ -550,7 +583,6 @@ Config ConfigDefault(void)
 	ConfigGroupAdd(&game, ConfigNewBool("Fog", true));
 	ConfigGroupAdd(&game,
 		ConfigNewInt("SightRange", 15, 8, 40, 1, NULL, NULL));
-	ConfigGroupAdd(&game, ConfigNewBool("Shadows", true));
 	ConfigGroupAdd(&game, ConfigNewEnum(
 		"FireMoveStyle", FIREMOVE_STOP, FIREMOVE_STOP, FIREMOVE_STRAFE,
 		StrFireMoveStyle, FireMoveStyleStr));
@@ -558,13 +590,10 @@ Config ConfigDefault(void)
 		"SwitchMoveStyle", SWITCHMOVE_SLIDE,
 		SWITCHMOVE_SLIDE, SWITCHMOVE_NONE,
 		StrSwitchMoveStyle, SwitchMoveStyleStr));
-	ConfigGroupAdd(&game, ConfigNewBool("ShotsPushback", true));
 	ConfigGroupAdd(&game, ConfigNewEnum(
 		"AllyCollision", ALLYCOLLISION_REPEL,
 		ALLYCOLLISION_NORMAL, ALLYCOLLISION_NONE,
 		StrAllyCollision, AllyCollisionStr));
-	ConfigGroupAdd(&game, ConfigNewEnum(
-		"Gore", GORE_LOW, GORE_NONE, GORE_HIGH, StrGoreAmount, GoreAmountStr));
 	ConfigGroupAdd(&game, ConfigNewEnum(
 		"LaserSight", LASER_SIGHT_NONE, LASER_SIGHT_NONE, LASER_SIGHT_ALL,
 		StrLaserSight, LaserSightStr));
@@ -604,9 +633,14 @@ Config ConfigDefault(void)
 		, 1, 4, 1, NULL, NULL));
 	ConfigGroupAdd(&gfx,
 		ConfigNewInt("ShakeMultiplier", 1, 0, 10, 1, NULL, NULL));
+	ConfigGroupAdd(&gfx, ConfigNewBool("ShowHUD", true));
 	ConfigGroupAdd(&gfx, ConfigNewEnum(
 		"ScaleMode", SCALE_MODE_NN, SCALE_MODE_NN, SCALE_MODE_BILINEAR,
 		StrScaleMode, ScaleModeStr));
+	ConfigGroupAdd(&gfx, ConfigNewBool("Shadows", true));
+	ConfigGroupAdd(&gfx, ConfigNewEnum(
+		"Gore", GORE_LOW, GORE_NONE, GORE_HIGH, StrGoreAmount, GoreAmountStr));
+	ConfigGroupAdd(&gfx, ConfigNewBool("Brass", true));
 	ConfigGroupAdd(&root, gfx);
 
 	Config input = ConfigNewGroup("Input");
@@ -646,6 +680,7 @@ Config ConfigDefault(void)
 		"Splitscreen", SPLITSCREEN_NEVER,
 		SPLITSCREEN_NORMAL, SPLITSCREEN_NEVER,
 		StrSplitscreenStyle, SplitscreenStyleStr));
+	ConfigGroupAdd(&itf, ConfigNewBool("SplitscreenAI", false));
 	ConfigGroupAdd(&root, itf);
 
 	Config snd = ConfigNewGroup("Sound");
